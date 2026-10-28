@@ -6,7 +6,7 @@ It is part of the **Codex** suite, alongside [Codex Gear Roadmap](https://github
 
 <p align="center">
   <img src="docs/screenshots/next.png" width="225" alt="The next boss and every other boss with what stands in the way">
-  <img src="docs/screenshots/prepare-dks.png" width="225" alt="Requirements, your best setups and the kit for the Dagannoth Kings">
+  <img src="docs/screenshots/prepare-zulrah.png" width="225" alt="Requirements, your best setup, the kit and the briefing for Zulrah">
   <img src="docs/screenshots/trip.png" width="225" alt="A trip to Sarachnis under way">
 </p>
 
@@ -15,8 +15,10 @@ It is part of the **Codex** suite, alongside [Codex Gear Roadmap](https://github
 - **The next boss for you.** Every boss is checked against your levels, quests, slayer task, members status and bank, and put in order: the bosses open to you now first, then those a task or a piece of kit away, then the locked ones with exactly what is missing ("Needs 87 Slayer (you have 77)", "Quest: Dragon Slayer II", "Get Mith grapple first"). Pick an aim: **Move on** (new and harder bosses you are ready for), **Loot** (the bosses your own trips have paid best at) or **Quick** (the fastest kills with your gear). **Pin** any boss to keep it at the top.
 - **Your best setup, from your bank.** Boss Pilot uses the Codex combat formulas shared with Codex Gear Roadmap to put together the strongest setup you own for each boss, with its kill time, max hit, attack style and offensive prayer. Bosses of several monsters, such as the Dagannoth Kings, get a setup for each.
 - **The kit.** Food in hitpoints, prayer in doses, antipoison, antifire and the must-haves such as a key, a spade, a dragonfire shield or a facemask, checked against your bank and your pack. Every dose, charge and colour of an item counts. With the bank open, a plaque lists what to take out; first-visit items such as the ropes at the Kalphite Lair drop off once you have been.
+- **The briefing.** For every boss, its main mechanics and the usual answer to each, as a guide would sum them up, to read on the Prepare tab before you go. Under it, a box for your own notes, such as the Ground Markers set to load, which the trip plaque repeats until the first kill.
 - **On the trip.** A plaque with kills, the trip clock, last, average and best kill time (from the game's own fight durations), loot so far, and how many more kills your food and prayer will last at the rate you are using them, or at your past trips' rate before the first kill. When there is not enough for another kill it says to bank after this one, and can send one notification.
-- **After the trip.** Kills and loot an hour, and one piece of advice from your own numbers: you ran low after five kills and six more sharks would last two more, or you came home with enough for four more kills, so stay longer or bring less.
+- **Reminders about you.** While at a boss: eat when your hitpoints fall under the share you set, drink when prayer runs low, a combat boost that has worn off, an antifire about to end or not drunk at a dragon, and a must-have item you came without. They look only at you, never at the boss.
+- **After the trip.** Kills and loot an hour, the damage you took and your biggest hit, and one piece of advice from your own numbers: you ran low after five kills and six more sharks would last two more, or you came home with enough for four more kills, so stay longer or bring less.
 - **The log.** Kill counts, best kills, kills and loot an hour for every boss you have fought, kept per account on your computer.
 
 <p align="center">
@@ -33,7 +35,7 @@ Obor, Bryophyta, Scurrius, Giant Mole, Barrows, Sarachnis, Kalphite Queen, King 
 
 ## Rules posture
 
-Boss Pilot plans trips. It never tells you what to pray, where to stand, when a boss will attack or what it will do next, and it draws nothing on a boss or on the ground. The notes on each boss are the kind of thing a wiki page says up front (the styles it attacks with, what you need to get in). It does not click, type or change menus, reads no files and sends nothing over the network. It reads the game, RuneLite's loot events and, when it has not seen your bank itself, the bank Codex Bank Steward shares. It saves only its own settings, its look at your bank and its logbook of your trips.
+Boss Pilot plans trips. During a fight it never reads what a boss is doing: no attack timers or counters, no prayer or tile cues, nothing drawn on a boss or on the ground. Its reminders come only from your own hitpoints, prayer, boosts, antifire and kit, the same kind of thing RuneLite's own low hitpoints and timer plugins show. The briefing and notes on each boss are what a guide says up front, read in the panel before you go. It does not click, type or change menus, reads no files and sends nothing over the network. It reads the game, RuneLite's loot events and, when it has not seen your bank itself, the bank Codex Bank Steward shares. It saves only its own settings, its look at your bank and its logbook of your trips.
 
 ## Development
 

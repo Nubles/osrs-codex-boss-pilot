@@ -4,6 +4,7 @@ import com.codex.bosspilot.core.Format;
 import com.codex.bosspilot.core.KitCheck;
 import com.codex.bosspilot.core.Logbook;
 import com.codex.bosspilot.core.Outlook;
+import com.codex.bosspilot.core.Reminders;
 import com.codex.bosspilot.core.Supply;
 import com.codex.bosspilot.core.Trip;
 import com.codex.bosspilot.ui.Theme;
@@ -16,14 +17,26 @@ public final class Plaques
 {
 	/** Kit lines shown at most; the panel has the rest. */
 	static final int KIT_LINES = 5;
+	/** Reminders shown at most, most urgent first. */
+	static final int REMINDER_LINES = 3;
+	/** The player's note is cut to this on the plaque. */
+	static final int NOTE_CHARS = 44;
 
 	private Plaques()
 	{
 	}
 
-	public static Plaque.Content trip(Trip trip, Outlook outlook, Logbook book, long now)
+	public static Plaque.Content trip(Trip trip, Outlook outlook, Logbook book, List<Reminders.Reminder> reminders, String note, long now)
 	{
 		List<Plaque.Line> lines = new ArrayList<>();
+		boolean urgent = false;
+		List<Reminders.Reminder> sorted = new ArrayList<>(reminders);
+		sorted.sort((a, b) -> Boolean.compare(b.isUrgent(), a.isUrgent()));
+		for (Reminders.Reminder r : sorted.subList(0, Math.min(REMINDER_LINES, sorted.size())))
+		{
+			lines.add(new Plaque.Line(r.getText(), r.isUrgent() ? Theme.EMBER : Theme.GOLD));
+			urgent |= r.isUrgent();
+		}
 		String kills = Format.plural(trip.getKills(), "kill", "kills") + " in " + Format.clock(trip.elapsed(now) / 1000.0);
 		lines.add(new Plaque.Line(kills, Theme.TEXT, trip.getLoot() > 0 ? Format.number(trip.getLoot()) + " loot" : null));
 		if (!trip.getKillSeconds().isEmpty())
@@ -37,7 +50,16 @@ public final class Plaques
 				Theme.TEXT_MUTED, best > 0 ? "best " + Format.clock(best) : null));
 		}
 		lines.add(new Plaque.Line(outlook.text(), color(outlook)));
-		return new Plaque.Content("BOSS PILOT: ON A TRIP", trip.getBoss().getName(), color(outlook), lines);
+		if (trip.getKills() == 0 && note != null && !note.isEmpty())
+		{
+			lines.add(new Plaque.Line("Your note: " + cut(note.replace('\n', ' '), NOTE_CHARS), Theme.TEXT_MUTED));
+		}
+		return new Plaque.Content("BOSS PILOT: ON A TRIP", trip.getBoss().getName(), urgent ? Theme.EMBER : color(outlook), lines);
+	}
+
+	static String cut(String text, int max)
+	{
+		return text.length() <= max ? text : text.substring(0, max - 3).trim() + "...";
 	}
 
 	/** The kit plaque, or null when everything is packed. */

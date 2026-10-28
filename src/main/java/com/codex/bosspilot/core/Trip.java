@@ -2,7 +2,11 @@ package com.codex.bosspilot.core;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * A trip to one boss as it happens: kills, how long each took, loot, deaths, and the food and
@@ -23,6 +27,13 @@ public final class Trip
 	private long dosesUsed;
 	private long foodNow = -1;
 	private long dosesNow = -1;
+	private long damage;
+	private int biggestHit;
+	private int hits;
+	/** Must-have kit lines carried at some point on this trip, by label. */
+	private final Set<String> mustSeen = new HashSet<>();
+	/** The biggest boost seen on this trip, by skill name, for the boost reminders. */
+	private final Map<String, Integer> boostPeaks = new HashMap<>();
 	/** A kill time the game sent before its kill count message, held for the kill it belongs to. */
 	private double pendingSeconds;
 	/** Whether the last kill's time came from the game rather than the clock. */
@@ -113,6 +124,61 @@ public final class Trip
 	void death()
 	{
 		deaths++;
+	}
+
+	/** Damage the player took. */
+	void hit(int amount)
+	{
+		if (amount > 0)
+		{
+			damage += amount;
+			hits++;
+			biggestHit = Math.max(biggestHit, amount);
+		}
+	}
+
+	/** Notes which must-have lines are carried now; once carried, a line counts for the whole trip. */
+	void mustCarried(Set<String> labels)
+	{
+		mustSeen.addAll(labels);
+	}
+
+	/** The must-have lines not carried at any point so far, only until the first kill. */
+	public List<String> missingMust(List<String> must)
+	{
+		List<String> out = new ArrayList<>();
+		if (kills > 0)
+		{
+			return out;
+		}
+		for (String m : must)
+		{
+			if (!mustSeen.contains(m))
+			{
+				out.add(m);
+			}
+		}
+		return out;
+	}
+
+	public Map<String, Integer> getBoostPeaks()
+	{
+		return boostPeaks;
+	}
+
+	public long getDamage()
+	{
+		return damage;
+	}
+
+	public int getBiggestHit()
+	{
+		return biggestHit;
+	}
+
+	public int getHits()
+	{
+		return hits;
 	}
 
 	public Boss getBoss()
@@ -207,6 +273,8 @@ public final class Trip
 		r.foodUsed = foodUsed;
 		r.dosesUsed = dosesUsed;
 		r.bestKill = bestKill();
+		r.damage = damage;
+		r.biggestHit = biggestHit;
 		return r;
 	}
 }

@@ -30,6 +30,9 @@ public final class Logbook
 		public long foodUsed;
 		public long dosesUsed;
 		public double bestKill;
+		/** Damage taken on the trip, and the biggest single hit. */
+		public long damage;
+		public int biggestHit;
 
 		public double minutes()
 		{

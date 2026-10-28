@@ -42,9 +42,8 @@ public final class Review
 		}
 		if (t.deaths > 0)
 		{
-			return t.deaths == 1
-				? "You died once. More food, or the best setup on the Prepare tab, would make the next trip safer."
-				: "You died " + t.deaths + " times. More food, or the best setup on the Prepare tab, would make the next trip safer.";
+			return (t.deaths == 1 ? "You died once." : "You died " + t.deaths + " times.")
+				+ " Read the briefing on the Prepare tab, and bring more food or the best setup there.";
 		}
 		double perKill = (double) t.foodUsed / t.kills;
 		if (left >= 0 && left < 1 && perKill > 0)
@@ -59,6 +58,22 @@ public final class Review
 				+ " more kills. Stay longer, or bring less and keep the room for loot.";
 		}
 		return "A well-packed trip: you used most of what you brought.";
+	}
+
+	/** "Took 412 damage, 82 a kill. Biggest hit 38.", or null when no hits were seen. */
+	public String damageText()
+	{
+		if (trip.damage <= 0)
+		{
+			return null;
+		}
+		StringBuilder out = new StringBuilder("Took ").append(trip.damage).append(" damage");
+		if (trip.kills > 0)
+		{
+			out.append(", ").append(Math.round((double) trip.damage / trip.kills)).append(" a kill");
+		}
+		out.append(". Biggest hit ").append(trip.biggestHit).append('.');
+		return out.toString();
 	}
 
 	private static String plural(long n, String one, String many)

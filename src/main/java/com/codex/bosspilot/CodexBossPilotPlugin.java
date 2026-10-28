@@ -10,12 +10,15 @@ import com.codex.bosspilot.core.BankSnapshot;
 import com.codex.bosspilot.core.Boss;
 import com.codex.bosspilot.core.Bosses;
 import com.codex.bosspilot.core.Chat;
+import com.codex.bosspilot.core.KitCheck;
 import com.codex.bosspilot.core.Logbook;
 import com.codex.bosspilot.core.Outlook;
 import com.codex.bosspilot.core.Ranker;
+import com.codex.bosspilot.core.Reminders;
 import com.codex.bosspilot.core.Review;
 import com.codex.bosspilot.core.Setup;
 import com.codex.bosspilot.core.Stock;
+import com.codex.bosspilot.core.Supply;
 import com.codex.bosspilot.core.Trip;
 import com.codex.bosspilot.core.TripTracker;
 import com.codex.bosspilot.data.Gear;
@@ -43,6 +46,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import net.runelite.api.ChatMessageType;
+import net.runelite.api.HitsplatID;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Item;
@@ -59,6 +63,7 @@ import net.runelite.api.events.ActorDeath;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.gameval.DBTableID;
 import net.runelite.api.gameval.InterfaceID;
@@ -89,9 +94,10 @@ import org.slf4j.LoggerFactory;
 /**
  * Plans bossing around the player's own account: which boss to do next, the best setup they own
  * for it, the kit to take out of the bank, and, once at the boss, how the trip is going and how
- * long the supplies will last. It reads the game and its own saved logbook only; it never tells
- * the player what to pray, where to stand or what a boss will do, never clicks, and sends nothing
- * off the computer.
+ * long the supplies will last. Its reminders on a trip look only at the player: hitpoints,
+ * prayer, boosts, antifire and kit. It never reads what a boss is doing, never tells the player
+ * what to pray, where to stand or what a boss will do next, never clicks, and sends nothing off
+ * the computer.
  */
 @PluginDescriptor(
 	name = "Codex Boss Pilot",
@@ -103,6 +109,11 @@ public class CodexBossPilotPlugin extends Plugin
 	private static final Logger log = LoggerFactory.getLogger(CodexBossPilotPlugin.class);
 	static final String BANK_KEY = "bankV1";
 	static final String PINNED_KEY = "pinned";
+	/** The player's own note for a boss, under this prefix and the boss key. */
+	static final String NOTE_KEY = "note.";
+	/** Notes longer than this are cut when saved. */
+	static final int NOTE_MAX = 500;
+	private static final Skill[] BOOSTABLE = {Skill.ATTACK, Skill.STRENGTH, Skill.DEFENCE, Skill.RANGED, Skill.MAGIC};
 	private static final int EVALUATE_TICKS = 5;
 	private static final int QUEST_TICKS = 100;
 	/** How close a boss has to be to count as being at it. */
@@ -246,6 +257,11 @@ public class CodexBossPilotPlugin extends Plugin
 		nearby = findNearby();
 		Stock pack = carried;
 		tracker.observe(nearby, pack.foodHeal(), pack.doses(PRAYER_POTIONS), System.currentTimeMillis());
+		Trip on = tracker.current();
+		if (on != null)
+		{
+			tracker.mustCarried(mustCarried(on.getBoss()));
+		}
 		saveFinished();
 		if (ticks % QUEST_TICKS == 0)
 		{
@@ -381,6 +397,16 @@ public class CodexBossPilotPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onHitsplatApplied(HitsplatApplied event)
+	{
+		// Only hits the player takes, for the fight review; the boss's own hitsplats are never read.
+		if (event.getActor() == client.getLocalPlayer() && event.getHitsplat().getHitsplatType() != HitsplatID.HEAL)
+		{
+			tracker.hit(event.getHitsplat().getAmount());
+		}
+	}
+
+	@Subscribe
 	public void onActorDeath(ActorDeath event)
 	{
 		if (event.getActor() == client.getLocalPlayer())
@@ -390,6 +416,67 @@ public class CodexBossPilotPlugin extends Plugin
 	}
 
 	// ---- Reading ----
+
+	/** The must-have kit lines the player carries now, by label. */
+	private Set<String> mustCarried(Boss boss)
+	{
+		Set<String> out = new HashSet<>();
+		for (KitCheck.Line l : KitCheck.of(boss, Stock.EMPTY, carried, true).getLines())
+		{
+			if (l.getSupply().getNeed() == Supply.Need.MUST && l.getCarried() > 0)
+			{
+				out.add(l.getSupply().getLabel());
+			}
+		}
+		return out;
+	}
+
+	private static List<String> mustLabels(Boss boss)
+	{
+		List<String> out = new ArrayList<>();
+		for (Supply s : boss.getKit())
+		{
+			if (s.getNeed() == Supply.Need.MUST)
+			{
+				out.add(s.getLabel());
+			}
+		}
+		return out;
+	}
+
+	/** Reminders about the player alone, on a trip. */
+	private List<Reminders.Reminder> reminders(Trip trip)
+	{
+		if (trip == null || !config.reminders())
+		{
+			return Collections.emptyList();
+		}
+		Reminders.Self me = new Reminders.Self();
+		me.hitpoints = client.getBoostedSkillLevel(Skill.HITPOINTS);
+		me.maxHitpoints = client.getRealSkillLevel(Skill.HITPOINTS);
+		me.prayer = client.getBoostedSkillLevel(Skill.PRAYER);
+		me.maxPrayer = client.getRealSkillLevel(Skill.PRAYER);
+		me.food = carried.foodHeal();
+		me.doses = carried.doses(PRAYER_POTIONS);
+		me.needsAntifire = trip.getBoss().needsAntifire();
+		me.antifire = Math.max(client.getVarbitValue(VarbitID.ANTIFIRE_POTION), client.getVarbitValue(VarbitID.SUPER_ANTIFIRE_POTION));
+		for (Skill skill : BOOSTABLE)
+		{
+			me.boosts.put(skill.getName(), client.getBoostedSkillLevel(skill) - client.getRealSkillLevel(skill));
+		}
+		me.missing = trip.missingMust(mustLabels(trip.getBoss()));
+		Reminders.Limits limits = new Reminders.Limits();
+		limits.eatPercent = config.eatPercent();
+		limits.prayerPoints = config.prayerPoints();
+		limits.boosts = config.boostReminders();
+		return Reminders.of(me, limits, trip.getBoostPeaks());
+	}
+
+	private String note(Boss boss)
+	{
+		String n = boss == null ? null : configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, NOTE_KEY + boss.getKey());
+		return n == null ? "" : n;
+	}
 
 	private Boss findNearby()
 	{
@@ -666,7 +753,9 @@ public class CodexBossPilotPlugin extends Plugin
 			warned = false;
 		}
 
-		tripPlaque.show(loggedIn && trip != null && config.tripPlaque() ? Plaques.trip(trip, outlook, logbook, now) : null);
+		List<Reminders.Reminder> reminders = loggedIn ? reminders(trip) : Collections.emptyList();
+		String tripNote = trip == null ? "" : note(trip.getBoss());
+		tripPlaque.show(loggedIn && trip != null && config.tripPlaque() ? Plaques.trip(trip, outlook, logbook, reminders, tripNote, now) : null);
 		kitPlaque.show(loggedIn && trip == null && next != null && config.bankPlaque() && bankOpen()
 			? Plaques.kit(next.getBoss().getName(), next.getKit()) : null);
 
@@ -678,7 +767,7 @@ public class CodexBossPilotPlugin extends Plugin
 		List<Setup> shownSetups = shown == null ? Collections.emptyList()
 			: setups.getOrDefault(shown.getBoss().getKey(), Collections.emptyList());
 		View view = new View(loggedIn, picks, next, shown, shownSetups, setupsPending && shownSetups.isEmpty(), trip, outlook, logbook,
-			review, in.aim, bankSeenAt, now);
+			review, in.aim, bankSeenAt, now, reminders, shown == null ? "" : note(shown.getBoss()));
 		SwingUtilities.invokeLater(() -> p.update(view));
 	}
 
@@ -841,6 +930,28 @@ public class CodexBossPilotPlugin extends Plugin
 				else
 				{
 					configManager.setRSProfileConfiguration(CodexBossPilotConfig.GROUP, PINNED_KEY, bossKey);
+				}
+				evaluate();
+			});
+		}
+
+		@Override
+		public void note(String bossKey, String text)
+		{
+			clientThread.invokeLater(() ->
+			{
+				String t = text == null ? "" : text.trim();
+				if (t.length() > NOTE_MAX)
+				{
+					t = t.substring(0, NOTE_MAX);
+				}
+				if (t.isEmpty())
+				{
+					configManager.unsetRSProfileConfiguration(CodexBossPilotConfig.GROUP, NOTE_KEY + bossKey);
+				}
+				else
+				{
+					configManager.setRSProfileConfiguration(CodexBossPilotConfig.GROUP, NOTE_KEY + bossKey, t);
 				}
 				evaluate();
 			});

@@ -58,6 +58,30 @@ public final class Boss
 	private final boolean members;
 	private final boolean wilderness;
 	private final String lootEvent;
+	private final List<Brief> briefing;
+
+	/** One line of the briefing: a mechanic and the usual way to deal with it, as a guide says it. */
+	public static final class Brief
+	{
+		private final String mechanic;
+		private final String answer;
+
+		Brief(String mechanic, String answer)
+		{
+			this.mechanic = mechanic;
+			this.answer = answer;
+		}
+
+		public String getMechanic()
+		{
+			return mechanic;
+		}
+
+		public String getAnswer()
+		{
+			return answer;
+		}
+	}
 
 	private Boss(Builder b)
 	{
@@ -79,6 +103,7 @@ public final class Boss
 		members = b.members;
 		wilderness = b.wilderness;
 		lootEvent = b.lootEvent;
+		briefing = Collections.unmodifiableList(new ArrayList<>(b.briefing));
 	}
 
 	public static Builder builder(String key, String name, Tier tier)
@@ -191,6 +216,25 @@ public final class Boss
 		return lootEvent;
 	}
 
+	/** The briefing to read before going: each mechanic and the usual answer to it. */
+	public List<Brief> getBriefing()
+	{
+		return briefing;
+	}
+
+	/** Whether the kit lists an antifire potion, so an antifire running out matters. */
+	public boolean needsAntifire()
+	{
+		for (Supply s : kit)
+		{
+			if (s.getLabel().toLowerCase(Locale.ROOT).contains("antifire"))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public boolean isNpc(String npcName)
 	{
 		return npcName != null && contains(npcNames, npcName);
@@ -257,6 +301,7 @@ public final class Boss
 		private boolean members = true;
 		private boolean wilderness;
 		private String lootEvent;
+		private final List<Brief> briefing = new ArrayList<>();
 
 		private Builder(String key, String name, Tier tier)
 		{
@@ -353,6 +398,12 @@ public final class Boss
 		public Builder lootEvent(String name)
 		{
 			lootEvent = name;
+			return this;
+		}
+
+		public Builder brief(String mechanic, String answer)
+		{
+			briefing.add(new Brief(mechanic, answer));
 			return this;
 		}
 

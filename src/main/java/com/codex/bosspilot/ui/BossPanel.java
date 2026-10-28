@@ -7,6 +7,7 @@ import com.codex.bosspilot.core.KitCheck;
 import com.codex.bosspilot.core.Logbook;
 import com.codex.bosspilot.core.Ranker;
 import com.codex.bosspilot.core.Readiness;
+import com.codex.bosspilot.core.Reminders;
 import com.codex.bosspilot.core.Review;
 import com.codex.bosspilot.core.Setup;
 import com.codex.bosspilot.core.Supply;
@@ -23,6 +24,7 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingConstants;
 import net.runelite.client.ui.PluginPanel;
@@ -48,6 +50,10 @@ public class BossPanel extends PluginPanel
 	private final JScrollPane scroll = new JScrollPane();
 	private View view = View.empty();
 	private boolean tripSeen;
+	/** The note box, kept across rebuilds so typing is never lost. */
+	private final JTextArea noteArea = new JTextArea(3, 0);
+	/** The boss whose note is in the box. */
+	private String noteBoss;
 
 	public BossPanel(Actions actions)
 	{
@@ -72,6 +78,24 @@ public class BossPanel extends PluginPanel
 		scroll.getVerticalScrollBar().setPreferredSize(new Dimension(8, 0));
 		add(scroll, BorderLayout.CENTER);
 		tabs.onChange(i -> rebuild(false));
+		noteArea.setLineWrap(true);
+		noteArea.setWrapStyleWord(true);
+		noteArea.setFont(Theme.small());
+		noteArea.setForeground(Theme.TEXT);
+		noteArea.setCaretColor(Theme.GOLD);
+		noteArea.setBackground(Theme.INK_DEEP);
+		noteArea.setBorder(new javax.swing.border.EmptyBorder(4, 5, 4, 5));
+		noteArea.addFocusListener(new java.awt.event.FocusAdapter()
+		{
+			@Override
+			public void focusLost(java.awt.event.FocusEvent e)
+			{
+				if (noteBoss != null)
+				{
+					actions.note(noteBoss, noteArea.getText());
+				}
+			}
+		});
 		rebuild(false);
 	}
 
@@ -86,6 +110,12 @@ public class BossPanel extends PluginPanel
 			tabs.setSelected(TRIP, false);
 		}
 		tripSeen = onTrip;
+		if (noteArea.isFocusOwner() && tabs.getSelected() == PREPARE)
+		{
+			// Rebuilding would take the box away mid-sentence; the crest can still move.
+			updateCrest();
+			return;
+		}
 		rebuild(true);
 	}
 
@@ -329,6 +359,17 @@ public class BossPanel extends PluginPanel
 			list.add(kitLine(l));
 		}
 
+		if (!b.getBriefing().isEmpty())
+		{
+			list.space(2);
+			list.add(new SectionHeader("Briefing", "read before you go"));
+			list.add(briefing(b));
+		}
+
+		list.space(2);
+		list.add(new SectionHeader("Your notes", "markers, plans"));
+		list.add(noteCard(b));
+
 		list.space(2);
 		list.add(new SectionHeader("Before you go"));
 		Card notes = new Card(new BorderLayout());
@@ -341,6 +382,37 @@ public class BossPanel extends PluginPanel
 		notes.add(nb, BorderLayout.CENTER);
 		list.add(notes);
 		return list;
+	}
+
+	private static JComponent briefing(Boss b)
+	{
+		Card card = new Card(new BorderLayout()).accent(Theme.TEAL);
+		StackPanel body = new StackPanel(6, 0);
+		for (Boss.Brief brief : b.getBriefing())
+		{
+			StackPanel one = new StackPanel(1, 0);
+			one.add(Ui.label(brief.getMechanic(), Theme.body(), Theme.GOLD));
+			one.add(Ui.wrapped(brief.getAnswer(), Theme.small(), Theme.TEXT, TEXT));
+			body.add(one);
+		}
+		body.add(Ui.wrapped("A guide's summary. Nothing here reacts during the fight.", Theme.small(), Theme.TEXT_FAINT, TEXT));
+		card.add(body, BorderLayout.CENTER);
+		return card;
+	}
+
+	private JComponent noteCard(Boss b)
+	{
+		if (!b.getKey().equals(noteBoss))
+		{
+			noteBoss = b.getKey();
+			noteArea.setText(view.note);
+			noteArea.setCaretPosition(0);
+		}
+		Card card = new Card(new BorderLayout(0, 4));
+		card.add(noteArea, BorderLayout.CENTER);
+		card.add(Ui.wrapped("Your own plan, such as the Ground Markers set to load. It shows on the trip plaque until the first kill.",
+			Theme.small(), Theme.TEXT_FAINT, TEXT), BorderLayout.SOUTH);
+		return card;
 	}
 
 	private JComponent requirements(Ranker.Pick p)
@@ -515,6 +587,12 @@ public class BossPanel extends PluginPanel
 			return list;
 		}
 		list.add(new SectionHeader(t.getBoss().getName(), Format.clock(t.elapsed(view.now) / 1000.0)));
+		for (Reminders.Reminder r : view.reminders)
+		{
+			Card rc = new Card(new BorderLayout()).accent(r.isUrgent() ? Theme.EMBER : Theme.GOLD);
+			rc.add(Ui.wrapped(r.getText(), Theme.body(), r.isUrgent() ? Theme.EMBER : Theme.GOLD, TEXT), BorderLayout.CENTER);
+			list.add(rc);
+		}
 		Card outlook = new Card(new BorderLayout()).accent(outlookColor()).highlighted(true);
 		outlook.add(Ui.wrapped(view.outlook.text(), Theme.body(), Theme.TEXT, TEXT), BorderLayout.CENTER);
 		list.add(outlook);
@@ -538,6 +616,10 @@ public class BossPanel extends PluginPanel
 			list.space(2);
 			list.add(new SectionHeader("Kill times"));
 			list.add(killTimes(t.getKillSeconds()));
+		}
+		if (t.getDamage() > 0)
+		{
+			list.add(note("Damage taken: " + t.getDamage() + ", biggest hit " + t.getBiggestHit() + "."));
 		}
 		if (t.getDeaths() > 0)
 		{
@@ -592,6 +674,10 @@ public class BossPanel extends PluginPanel
 		{
 			body.add(Ui.wrapped(String.format(java.util.Locale.ROOT, "%.1f kills an hour", r.killsPerHour())
 				+ (t.loot > 0 ? ", " + Format.number(r.lootPerHour()) + " loot an hour" : ""), Theme.small(), Theme.TEXT_MUTED, TEXT));
+		}
+		if (r.damageText() != null)
+		{
+			body.add(Ui.wrapped(r.damageText(), Theme.small(), Theme.TEXT_MUTED, TEXT));
 		}
 		body.add(Ui.wrapped(r.getAdvice(), Theme.small(), Theme.TEAL, TEXT));
 		card.add(body, BorderLayout.CENTER);
@@ -669,7 +755,7 @@ public class BossPanel extends PluginPanel
 	private static JComponent rules()
 	{
 		Card card = new Card(new BorderLayout());
-		card.add(Ui.wrapped("Boss Pilot plans your trips. It never tells you what to pray, where to stand or what a boss does next.",
+		card.add(Ui.wrapped("Boss Pilot plans your trips and watches your own hitpoints, prayer and supplies. It never reacts to what a boss is doing.",
 			Theme.small(), Theme.TEXT_FAINT, TEXT), BorderLayout.CENTER);
 		return card;
 	}

@@ -75,6 +75,24 @@ public final class TripTracker
 		}
 	}
 
+	/** The player took a hit. */
+	public void hit(int amount)
+	{
+		if (trip != null)
+		{
+			trip.hit(amount);
+		}
+	}
+
+	/** The must-have kit lines the player carries now, by label. */
+	public void mustCarried(java.util.Set<String> labels)
+	{
+		if (trip != null)
+		{
+			trip.mustCarried(labels);
+		}
+	}
+
 	/** Ends the trip now, as on logging out. */
 	public void end()
 	{

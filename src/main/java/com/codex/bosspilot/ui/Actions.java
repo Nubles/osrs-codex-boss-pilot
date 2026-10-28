@@ -12,4 +12,7 @@ public interface Actions
 	void pin(String bossKey);
 
 	void aim(Aim aim);
+
+	/** Saves the player's own note for a boss; empty clears it. */
+	void note(String bossKey, String text);
 }

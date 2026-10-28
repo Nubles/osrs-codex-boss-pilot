@@ -6,8 +6,8 @@ import java.util.List;
 
 /**
  * The bosses Boss Pilot plans for. Kits are suggestions for a comfortable trip of a few kills,
- * not minimums; only lines marked must-have stop a trip. Notes say what a wiki page would say
- * before the fight starts, and never what to do as it happens.
+ * not minimums; only lines marked must-have stop a trip. Notes and briefings say what a guide would
+ * say before the fight starts. They are read in the panel and nothing reacts to the fight itself.
  */
 public final class Bosses
 {
@@ -27,6 +27,8 @@ public final class Bosses
 		.suggested(40)
 		.kit(Supply.must("Giant key", 1, "Giant key"), Supply.food(120), Supply.optional("House teleport", 1, HOUSE))
 		.free()
+		.brief("Club and boulders", "He hits with his club up close and throws from range. Most players fight next to him with Protect from Melee and eat through the thrown hits.")
+		.brief("Knockback", "A heavy swing can knock you back. Step straight back in.")
 		.build();
 
 	public static final Boss BRYOPHYTA = Boss.builder("bryophyta", "Bryophyta", Boss.Tier.EARLY)
@@ -37,6 +39,8 @@ public final class Bosses
 		.suggested(45)
 		.kit(Supply.must("Mossy key", 1, "Mossy key"), Supply.food(140), Supply.optional("House teleport", 1, HOUSE))
 		.free()
+		.brief("Magic from range", "She mixes melee with a magic attack. Staying next to her with Protect from Magic is the usual way.")
+		.brief("Growthlings", "She calls in three growthlings. Kill them quickly so they do not add to the damage.")
 		.build();
 
 	public static final Boss SCURRIUS = Boss.builder("scurrius", "Scurrius", Boss.Tier.EARLY)
@@ -47,6 +51,9 @@ public final class Bosses
 		.targets("Scurrius")
 		.suggested(55)
 		.kit(Supply.food(160), Supply.doses("Prayer", 8, PRAYER), Supply.optional("House teleport", 1, HOUSE))
+		.brief("Three styles", "He uses melee, ranged and magic. Most players protect against the style he is using at the time.")
+		.brief("Falling rocks", "Rocks fall on shaded tiles. Step off the shadows.")
+		.brief("Giant rats", "Rats join in through the fight. Kill them before they pile up.")
 		.build();
 
 	public static final Boss GIANT_MOLE = Boss.builder("mole", "Giant Mole", Boss.Tier.EARLY)
@@ -58,6 +65,9 @@ public final class Bosses
 		.suggested(70)
 		.kit(Supply.must("Spade", 1, "Spade"), Supply.food(200), Supply.doses("Prayer", 8, PRAYER),
 			Supply.optional("Falador shield", 1, "Falador shield*"))
+		.brief("Dark lair", "The lair is dark. Bring a light source so you can see.")
+		.brief("Melee only", "All its damage is melee, so Protect from Melee stops almost all of it.")
+		.brief("Burrowing", "It digs away when its health drops. Follow the dust, or use a Falador shield to find it.")
 		.build();
 
 	public static final Boss BARROWS = Boss.builder("barrows", "Barrows", Boss.Tier.MID)
@@ -74,6 +84,10 @@ public final class Bosses
 		.suggested(75)
 		.kit(Supply.must("Spade", 1, "Spade"), Supply.doses("Prayer", 12, PRAYER), Supply.food(120),
 			Supply.optional("Barrows teleport", 1, "Barrows teleport"))
+		.brief("One style each", "Each brother uses one style. Protect from Magic for Ahrim, Missiles for Karil, Melee for the other four.")
+		.brief("Prayer drain", "Prayer drains faster in the crypts and tunnels. Bring more prayer than the fights alone would need.")
+		.brief("Dharok", "He hits harder the lower his health gets. Keep your prayer up for him above all.")
+		.brief("Weaknesses", "Magic works well on the melee brothers. Ranged or melee on Ahrim.")
 		.build();
 
 	public static final Boss SARACHNIS = Boss.builder("sarachnis", "Sarachnis", Boss.Tier.MID)
@@ -83,6 +97,8 @@ public final class Bosses
 		.targets("Sarachnis")
 		.suggested(80)
 		.kit(Supply.food(200), Supply.doses("Prayer", 8, PRAYER), Supply.optional("House teleport", 1, HOUSE))
+		.brief("Melee and ranged", "She bites up close and spits from range. Stay next to her with Protect from Melee.")
+		.brief("Spawn", "She calls spawn of Sarachnis at two points in the fight. Kill them fast.")
 		.build();
 
 	public static final Boss KALPHITE_QUEEN = Boss.builder("kq", "Kalphite Queen", Boss.Tier.MID)
@@ -95,6 +111,9 @@ public final class Bosses
 		.suggested(100)
 		.kit(Supply.food(260), Supply.doses("Prayer", 16, PRAYER), Supply.doses("Antipoison", 4, ANTIPOISON),
 			Supply.firstVisit("Rope", 2, "Rope"))
+		.brief("Two forms", "The second form appears when the first dies, with new defences. Many players switch styles for it.")
+		.brief("Magic and ranged", "Her magic and ranged hits reach anyone nearby. Most players protect against magic and eat through the rest.")
+		.brief("Workers and guardians", "Kalphites around the lair are aggressive. Bring enough food for the walk in.")
 		.build();
 
 	public static final Boss KING_BLACK_DRAGON = Boss.builder("kbd", "King Black Dragon", Boss.Tier.WILDERNESS)
@@ -106,6 +125,8 @@ public final class Bosses
 		.kit(Supply.must("Dragonfire shield", 1, DRAGONFIRE_SHIELD), Supply.food(200),
 			Supply.doses("Prayer", 8, PRAYER), Supply.doses("Antifire", 2, ANTIFIRE))
 		.wilderness()
+		.brief("Four breaths", "He breathes plain, poisonous, freezing and shocking fire. An anti-dragon shield and an antifire cut them right down.")
+		.brief("Melee up close", "His melee only reaches you when you stand next to him. Protect from Melee if you fight up close.")
 		.build();
 
 	public static final Boss DAGANNOTH_KINGS = Boss.builder("dks", "Dagannoth Kings", Boss.Tier.MID)
@@ -119,6 +140,9 @@ public final class Bosses
 		.suggested(105)
 		.kit(Supply.food(300), Supply.doses("Prayer", 16, PRAYER), Supply.optional("Rune thrownaxe", 1, "Rune thrownaxe"),
 			Supply.optional("Pet rock", 1, "Pet rock"))
+		.brief("One style each", "Rex hits with melee, Prime with magic and Supreme with ranged. Protect against the king you are fighting.")
+		.brief("Weaknesses", "Rex is weak to magic, Prime to ranged and Supreme to melee.")
+		.brief("Several at once", "All three can be up together. Many players fight one at a time from a spot where the others cannot reach.")
 		.build();
 
 	public static final Boss KRAKEN = Boss.builder("kraken", "Kraken", Boss.Tier.SLAYER)
@@ -131,6 +155,8 @@ public final class Bosses
 		.task("kraken")
 		.suggested(90)
 		.kit(Supply.food(100), Supply.doses("Prayer", 4, PRAYER))
+		.brief("Waking it", "Disturb the four small whirlpools first, then the big one in the middle.")
+		.brief("Magic", "Its hits are magic. A trident and Protect from Magic keep the damage low.")
 		.build();
 
 	public static final Boss THERMONUCLEAR = Boss.builder("thermy", "Thermonuclear smoke devil", Boss.Tier.SLAYER)
@@ -146,6 +172,9 @@ public final class Bosses
 			"Hydra slayer helmet*", "Twisted slayer helmet*", "Tztok slayer helmet*", "Vampyric slayer helmet*",
 			"Tzkal slayer helmet*", "Araxyte slayer helmet*"),
 			Supply.food(200), Supply.doses("Prayer", 12, PRAYER))
+		.brief("Smoke", "The smoke in the room drains your stats. A facemask or slayer helmet stops it.")
+		.brief("Ranged hits", "Its attacks are ranged. Protect from Missiles stops them.")
+		.brief("Multi-combat", "Smoke devils in the dungeon are aggressive and the room is multi-combat.")
 		.build();
 
 	public static final Boss GROTESQUE_GUARDIANS = Boss.builder("gg", "Grotesque Guardians", Boss.Tier.SLAYER)
@@ -161,6 +190,10 @@ public final class Bosses
 		.quest("PRIEST_IN_PERIL")
 		.suggested(100)
 		.kit(Supply.must("Brittle key", 1, "Brittle key"), Supply.food(260), Supply.doses("Prayer", 16, PRAYER))
+		.brief("Two gargoyles", "Dawn flies and is hit only with ranged. Dusk is hit with melee, and crush is best.")
+		.brief("Falling rocks", "Rocks fall on shaded tiles. Step off the shadows.")
+		.brief("Lightning", "Electric orbs cross the roof. Keep clear of them.")
+		.brief("Prayer", "Dawn uses ranged and Dusk melee. Protect against the one fighting you.")
 		.build();
 
 	public static final Boss ZULRAH = Boss.builder("zulrah", "Zulrah", Boss.Tier.LATE)
@@ -173,6 +206,10 @@ public final class Bosses
 		.suggested(100)
 		.kit(Supply.food(300), Supply.doses("Prayer", 16, PRAYER), Supply.doses("Anti-venom", 4, ANTIVENOM),
 			Supply.optional("Zul-andra teleport", 1, "Zul-andra teleport"))
+		.brief("Three forms", "Green uses ranged, blue uses magic and ranged, red uses melee.")
+		.brief("Usual answer", "Green: Protect from Missiles and hit it with magic. Blue: Protect from Magic and hit it with ranged. Red: step away from where it stares.")
+		.brief("Venom clouds", "It spits clouds that venom you. Keep off them.")
+		.brief("Rotations", "Its forms come in a few set orders. A guide shows them, and they are worth learning before your first trip.")
 		.build();
 
 	public static final Boss VORKATH = Boss.builder("vorkath", "Vorkath", Boss.Tier.LATE)
@@ -186,6 +223,11 @@ public final class Bosses
 		.suggested(105)
 		.kit(Supply.must("Dragonfire shield", 1, DRAGONFIRE_SHIELD), Supply.mustDoses("Super antifire", 2, SUPER_ANTIFIRE),
 			Supply.food(300), Supply.doses("Prayer", 12, PRAYER), Supply.doses("Anti-venom", 4, ANTIVENOM))
+		.brief("Dragonfire", "Its fire needs both a dragonfire shield and a super antifire.")
+		.brief("Acid", "It covers the floor in acid. Walk a clean path and keep off the pools.")
+		.brief("Zombified spawn", "It freezes you and sends a spawn. Kill the spawn with Crumble Undead.")
+		.brief("Firebomb", "A purple or pink fireball is aimed at your tile. Move at least two tiles.")
+		.brief("Ranged and magic", "Most players pray Protect from Missiles.")
 		.build();
 
 	public static final Boss GRAARDOR = Boss.builder("graardor", "General Graardor", Boss.Tier.GOD_WARS)
@@ -197,6 +239,8 @@ public final class Bosses
 		.skill("Strength", 70)
 		.suggested(110)
 		.kit(Supply.food(360), Supply.doses("Prayer", 24, PRAYER), Supply.firstVisit("Rope", 1, "Rope"))
+		.brief("Melee and ranged", "He hits up close and throws at the whole room. Most players pray Protect from Melee and eat through the ranged hits.")
+		.brief("Bodyguards", "Three bodyguards fight with him. Kill them, or step around them so fewer reach you.")
 		.build();
 
 	public static final Boss ZILYANA = Boss.builder("zilyana", "Commander Zilyana", Boss.Tier.GOD_WARS)
@@ -208,6 +252,9 @@ public final class Bosses
 		.skill("Agility", 70)
 		.suggested(110)
 		.kit(Supply.food(320), Supply.doses("Prayer", 24, PRAYER), Supply.firstVisit("Rope", 2, "Rope"))
+		.brief("Fast melee", "She is quick and hits hard with melee. Protect from Melee.")
+		.brief("Magic", "Her magic hits everyone in the room and cannot be prayed against while you pray melee. Keep your hitpoints high.")
+		.brief("Bodyguards", "Three bodyguards fight with her. Kill them, or keep them on another player.")
 		.build();
 
 	public static final Boss KREEARRA = Boss.builder("kreearra", "Kree'arra", Boss.Tier.GOD_WARS)
@@ -219,6 +266,9 @@ public final class Bosses
 		.skill("Ranged", 70)
 		.suggested(105)
 		.kit(Supply.must("Mith grapple", 1, "Mith grapple"), Supply.food(320), Supply.doses("Prayer", 24, PRAYER))
+		.brief("Ranged and magic", "He hits the whole room with ranged and magic. Most players pray Protect from Missiles.")
+		.brief("Melee knockback", "Standing next to him earns a melee hit that knocks you back. Fight from range.")
+		.brief("Bodyguards", "Three bodyguards fight with him, one of each style.")
 		.build();
 
 	public static final Boss KRIL = Boss.builder("kril", "K'ril Tsutsaroth", Boss.Tier.GOD_WARS)
@@ -230,6 +280,10 @@ public final class Bosses
 		.skill("Hitpoints", 70)
 		.suggested(105)
 		.kit(Supply.food(320), Supply.doses("Prayer", 24, PRAYER), Supply.doses("Antipoison", 4, ANTIPOISON))
+		.brief("Melee and magic", "He hits with melee and magic. Most players pray Protect from Melee.")
+		.brief("Special attack", "Now and then he shouts and hits through Protect from Melee, draining your prayer. Keep prayer up and food ready.")
+		.brief("Poison", "His hits can poison. Bring antipoison.")
+		.brief("Bodyguards", "Three bodyguards fight with him.")
 		.build();
 
 	public static final List<Boss> ALL = Collections.unmodifiableList(Arrays.asList(

@@ -334,6 +334,7 @@ public class BossPilotCoreTest
 			assertFalse(b.getKit().isEmpty());
 			assertFalse(b.getWhere().isEmpty());
 			assertTrue(b.getSuggestedCombat() > 0);
+			assertFalse("no briefing for " + b.getName(), b.getBriefing().isEmpty());
 			assertSame(b, Bosses.byKey(b.getKey()));
 			for (String npc : b.getNpcNames())
 			{
@@ -348,5 +349,85 @@ public class BossPilotCoreTest
 		assertEquals("0:48", Format.clock(48));
 		assertEquals("1:23", Format.clock(83.4));
 		assertEquals("1:02:03", Format.clock(3723));
+	}
+
+	@Test
+	public void remindersLookOnlyAtThePlayer()
+	{
+		Reminders.Self me = new Reminders.Self();
+		me.maxHitpoints = 99;
+		me.hitpoints = 40;
+		me.maxPrayer = 70;
+		me.prayer = 8;
+		me.food = 100;
+		me.doses = 4;
+		me.boosts.put("Strength", 12);
+		Reminders.Limits limits = new Reminders.Limits();
+		Map<String, Integer> peaks = new HashMap<>();
+		List<Reminders.Reminder> r = Reminders.of(me, limits, peaks);
+		assertEquals(2, r.size());
+		assertEquals("Eat: 40 of 99 hitpoints", r.get(0).getText());
+		assertTrue(r.get(0).isUrgent());
+		assertEquals("Drink: 8 prayer points left", r.get(1).getText());
+
+		me.hitpoints = 90;
+		me.prayer = 50;
+		me.boosts.put("Strength", 1);
+		r = Reminders.of(me, limits, peaks);
+		assertEquals(1, r.size());
+		assertEquals("Strength boost has worn off", r.get(0).getText());
+		assertFalse(r.get(0).isUrgent());
+		limits.boosts = false;
+		assertTrue(Reminders.of(me, limits, peaks).isEmpty());
+
+		me.food = 0;
+		me.hitpoints = 10;
+		me.needsAntifire = true;
+		me.antifire = 1;
+		r = Reminders.of(me, limits, peaks);
+		assertEquals("Low hitpoints and no food left: time to leave", r.get(0).getText());
+		assertEquals("Antifire is about to run out", r.get(1).getText());
+		limits.eatPercent = 0;
+		me.antifire = 5;
+		assertTrue(Reminders.of(me, limits, peaks).isEmpty());
+	}
+
+	@Test
+	public void mustHaveCountsOnceCarriedAndStopsAfterTheFirstKill()
+	{
+		TripTracker tracker = new TripTracker();
+		tracker.observe(Bosses.OBOR, 100, 0, 0);
+		List<String> must = Collections.singletonList("Giant key");
+		assertEquals(must, tracker.current().missingMust(must));
+		tracker.mustCarried(new HashSet<>(must));
+		// The key is used on the gate: carried once is enough.
+		tracker.mustCarried(Collections.emptySet());
+		assertTrue(tracker.current().missingMust(must).isEmpty());
+
+		TripTracker other = new TripTracker();
+		other.observe(Bosses.VORKATH, 100, 0, 0);
+		other.kill(Bosses.VORKATH, 60_000);
+		assertTrue(other.current().missingMust(Collections.singletonList("Dragonfire shield")).isEmpty());
+	}
+
+	@Test
+	public void tripCountsDamageForTheReview()
+	{
+		TripTracker tracker = new TripTracker();
+		tracker.observe(Bosses.SARACHNIS, 200, 8, 0);
+		tracker.hit(20);
+		tracker.hit(0);
+		tracker.hit(31);
+		tracker.kill(Bosses.SARACHNIS, 60_000);
+		tracker.hit(9);
+		tracker.kill(Bosses.SARACHNIS, 120_000);
+		Trip t = tracker.current();
+		assertEquals(60, t.getDamage());
+		assertEquals(31, t.getBiggestHit());
+		assertEquals(3, t.getHits());
+		Review r = Review.of(Bosses.SARACHNIS, t.record(), 2);
+		assertEquals("Took 60 damage, 30 a kill. Biggest hit 31.", r.damageText());
+		assertTrue(Bosses.VORKATH.needsAntifire());
+		assertFalse(Bosses.SARACHNIS.needsAntifire());
 	}
 }

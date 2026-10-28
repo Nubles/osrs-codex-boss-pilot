@@ -4,6 +4,7 @@ import com.codex.bosspilot.core.Aim;
 import com.codex.bosspilot.core.Logbook;
 import com.codex.bosspilot.core.Outlook;
 import com.codex.bosspilot.core.Ranker;
+import com.codex.bosspilot.core.Reminders;
 import com.codex.bosspilot.core.Review;
 import com.codex.bosspilot.core.Setup;
 import com.codex.bosspilot.core.Trip;
@@ -29,9 +30,14 @@ public final class View
 	/** When the bank was last seen, in Unix milliseconds, or 0. */
 	public final long bankSeenAt;
 	public final long now;
+	/** Reminders about the player on the trip under way. */
+	public final List<Reminders.Reminder> reminders;
+	/** The player's own note for the selected boss, or empty. */
+	public final String note;
 
 	public View(boolean loggedIn, List<Ranker.Pick> picks, Ranker.Pick next, Ranker.Pick selected, List<Setup> setups,
-		boolean setupsPending, Trip trip, Outlook outlook, Logbook logbook, Review review, Aim aim, long bankSeenAt, long now)
+		boolean setupsPending, Trip trip, Outlook outlook, Logbook logbook, Review review, Aim aim, long bankSeenAt, long now,
+		List<Reminders.Reminder> reminders, String note)
 	{
 		this.loggedIn = loggedIn;
 		this.picks = picks;
@@ -46,12 +52,15 @@ public final class View
 		this.aim = aim;
 		this.bankSeenAt = bankSeenAt;
 		this.now = now;
+		this.reminders = reminders;
+		this.note = note;
 	}
 
 	public static View empty()
 	{
 		return new View(false, Collections.emptyList(), null, null, Collections.emptyList(), false, null, Outlook.UNKNOWN,
-			new Logbook(), null, Aim.PROGRESS, 0, 0);
+			new Logbook(), null, Aim.PROGRESS, 0, 0,
+			Collections.emptyList(), "");
 	}
 
 	public long openCount()

@@ -6,6 +6,8 @@ import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
+import net.runelite.client.config.Range;
+import net.runelite.client.config.Units;
 
 @ConfigGroup(CodexBossPilotConfig.GROUP)
 public interface CodexBossPilotConfig extends Config
@@ -57,6 +59,37 @@ public interface CodexBossPilotConfig extends Config
 	@ConfigItem(keyName = "notifyLow", name = "Notify when supplies run low", position = 1, section = trip,
 		description = "Send a notification once when your supplies will not last another kill")
 	default boolean notifyLow()
+	{
+		return true;
+	}
+
+	@ConfigItem(keyName = "reminders", name = "Reminders about you", position = 2, section = trip,
+		description = "On a trip, remind you when your own hitpoints or prayer are low, a boost or antifire wears off, or a must-have item was left behind. They never look at the boss")
+	default boolean reminders()
+	{
+		return true;
+	}
+
+	@Range(max = 90)
+	@Units(Units.PERCENT)
+	@ConfigItem(keyName = "eatPercent", name = "Remind to eat under", position = 3, section = trip,
+		description = "Remind you to eat when your hitpoints fall under this share; 0 turns it off")
+	default int eatPercent()
+	{
+		return 50;
+	}
+
+	@Range(max = 99)
+	@ConfigItem(keyName = "prayerPoints", name = "Remind to drink under", position = 4, section = trip,
+		description = "Remind you to drink a prayer potion when your prayer points fall under this; 0 turns it off")
+	default int prayerPoints()
+	{
+		return 10;
+	}
+
+	@ConfigItem(keyName = "boostReminders", name = "Boost reminders", position = 5, section = trip,
+		description = "Remind you when a combat boost you drank has worn off")
+	default boolean boostReminders()
 	{
 		return true;
 	}
