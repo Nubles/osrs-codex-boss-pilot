@@ -108,7 +108,7 @@ public final class Ranker
 			Readiness r = Readiness.of(boss, in.account, kit);
 			double secs = in.killSeconds.getOrDefault(boss.getKey(), -1.0);
 			boolean pinned = boss.getKey().equals(in.pinned);
-			picks.add(new Pick(boss, r, kit, secs, score(boss, r, kit, secs, in), why(boss, r, kit, secs, in), pinned));
+			picks.add(new Pick(boss, r, kit, secs, score(boss, r, kit, secs, in), why(boss, r, kit, in), pinned));
 		}
 		picks.sort(Comparator.comparing((Pick p) -> !p.pinned).thenComparing(Comparator.comparingDouble((Pick p) -> p.score).reversed()));
 		return picks;
@@ -190,7 +190,7 @@ public final class Ranker
 		return s;
 	}
 
-	static String why(Boss boss, Readiness r, KitCheck kit, double secs, Inputs in)
+	static String why(Boss boss, Readiness r, KitCheck kit, Inputs in)
 	{
 		switch (r.getStatus())
 		{
@@ -212,7 +212,7 @@ public final class Ranker
 		}
 		else if (kc <= 0 && !in.logbook.visited(boss))
 		{
-			out.append(r.getStatus() == Readiness.Status.STRETCH ? "Open to you, though a step up." : "You meet every requirement and have not killed it yet.");
+			out.append(r.getStatus() == Readiness.Status.STRETCH ? "Open to you, though a step up." : "Open to you, and not killed yet.");
 		}
 		else if (kc > 0)
 		{
@@ -221,10 +221,6 @@ public final class Ranker
 		else
 		{
 			out.append("You meet every requirement.");
-		}
-		if (secs > 0)
-		{
-			out.append(" Your best gear kills one in about ").append(Format.clock(secs)).append('.');
 		}
 		List<KitCheck.Line> shortLines = kit.shortSuggested();
 		if (!shortLines.isEmpty())

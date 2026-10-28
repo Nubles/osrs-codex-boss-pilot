@@ -34,6 +34,20 @@ public final class Setup
 		this.gear = Collections.unmodifiableList(gear);
 	}
 
+	/**
+	 * The monster's name as a setup card shows it, without what the boss's other monsters share:
+	 * "Dagannoth Prime" under the Dagannoth Kings reads "Prime".
+	 */
+	public static String shortName(String bossName, String target)
+	{
+		if (target == null)
+		{
+			return null;
+		}
+		String first = bossName.split(" ")[0] + " ";
+		return target.startsWith(first) && !target.equals(bossName) ? target.substring(first.length()) : target;
+	}
+
 	public String getTarget()
 	{
 		return target;

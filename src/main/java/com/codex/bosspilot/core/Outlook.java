@@ -102,6 +102,22 @@ public final class Outlook
 		return limit;
 	}
 
+	/** A short form for tight spaces: "4 more kills", "Bank after this kill". */
+	public String shortText()
+	{
+		switch (level)
+		{
+			case PLENTY:
+			case FEW:
+				long n = Math.max(1, (long) Math.floor(kills));
+				return "Supplies: " + n + " more " + (n == 1 ? "kill" : "kills");
+			case LAST:
+				return "Bank after this kill";
+			default:
+				return "Learning your pace";
+		}
+	}
+
 	/** "Supplies for about 4 more kills", "Bank after this kill: your food is nearly gone". */
 	public String text()
 	{
