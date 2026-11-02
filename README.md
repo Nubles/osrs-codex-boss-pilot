@@ -37,6 +37,10 @@ Obor, Bryophyta, Scurrius, Giant Mole, Barrows, Sarachnis, Kalphite Queen, King 
 
 Boss Pilot plans trips. During a fight it never reads what a boss is doing: no attack timers or counters, no prayer or tile cues, nothing drawn on a boss or on the ground. Its reminders come only from your own hitpoints, prayer, boosts, antifire and kit, the same kind of thing RuneLite's own low hitpoints and timer plugins show. The briefing and notes on each boss are what a guide says up front, read in the panel before you go. It does not click, type or change menus, reads no files and sends nothing over the network. It reads the game, RuneLite's loot events and, when it has not seen your bank itself, the bank Codex Bank Steward shares. It saves only its own settings, its look at your bank and its logbook of your trips.
 
+## Field notes
+
+An optional setting, **Keep field notes** (under Field notes, off by default), writes a plain record of what Boss Pilot reads and decides to its own folder in `.runelite/plugin-data` on your computer, one line at a time. It is for checking the plugin's guesses against real play: when something looks wrong, the notes show what it saw and why it chose what it did. Other players' chat is never written down, it stays on your computer, and nothing is sent anywhere.
+
 ## Development
 
 ```bash
