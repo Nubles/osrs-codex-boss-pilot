@@ -33,6 +33,7 @@ public final class Debrief
 		OUT_OF_FOOD("Out of food", "Food"),
 		OUT_OF_PRAYER("Out of prayer", "Prayer"),
 		BAG_FULL("Bag full", "Full bag"),
+		OUT_OF_CHARGES("Out of charges", "Charges"),
 		LOGGED_OUT("Logged out", "Logout"),
 		HOPPED("Hopped", "Hop"),
 		MOVED_ON("Moved on", "Moved on"),
@@ -79,7 +80,7 @@ public final class Debrief
 		/** Whether it is a reason to change what you bring, rather than a choice you made. */
 		public boolean isForced()
 		{
-			return this == DIED || this == OUT_OF_FOOD || this == OUT_OF_PRAYER || this == BAG_FULL;
+			return this == DIED || this == OUT_OF_FOOD || this == OUT_OF_PRAYER || this == BAG_FULL || this == OUT_OF_CHARGES;
 		}
 	}
 
@@ -228,6 +229,10 @@ public final class Debrief
 		if (t.diedLast())
 		{
 			return Ending.DIED;
+		}
+		if (t.getRanOut() != null)
+		{
+			return Ending.OUT_OF_CHARGES;
 		}
 		if (left != null && left.kills < 1)
 		{
@@ -394,6 +399,10 @@ public final class Debrief
 				return "Out of food after " + Format.plural(t.kills, "kill", "kills") + ": what was left would not last another.";
 			case OUT_OF_PRAYER:
 				return "Out of prayer after " + Format.plural(t.kills, "kill", "kills") + ": what was left would not last another.";
+			case OUT_OF_CHARGES:
+				return "Your " + (t.outOf == null ? "charged gear" : t.outOf) + " ran out after " + Format.plural(t.kills, "kill", "kills")
+					+ (t.killsLeft >= 1 ? ", with food and prayer for about " + Format.plural((long) Math.floor(t.killsLeft), "more kill", "more kills") : "")
+					+ ".";
 			case BAG_FULL:
 				return "Your bag was full when you left" + spare + ".";
 			case LOGGED_OUT:
@@ -463,6 +472,8 @@ public final class Debrief
 		{
 			case DIED:
 				return lead + "ended in a death. Check the setup and briefing on the Prepare tab before the next one.";
+			case OUT_OF_CHARGES:
+				return lead + "ran out of charges. Check your charged gear before you leave the bank: the Prepare tab says how many kills each lasts.";
 			case OUT_OF_FOOD:
 			{
 				if (kills <= 0 || food <= 0)

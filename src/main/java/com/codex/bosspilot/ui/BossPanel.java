@@ -3,6 +3,7 @@ package com.codex.bosspilot.ui;
 import com.codex.bosspilot.core.Aim;
 import com.codex.bosspilot.core.Boss;
 import com.codex.bosspilot.core.Format;
+import com.codex.bosspilot.core.ChargeCheck;
 import com.codex.bosspilot.core.KitCheck;
 import com.codex.bosspilot.core.Logbook;
 import com.codex.bosspilot.core.Ranker;
@@ -353,10 +354,22 @@ public class BossPanel extends PluginPanel
 
 		list.space(2);
 		KitCheck kit = p.getKit();
-		list.add(new SectionHeader("Kit", kit.isPacked() ? "packed" : view.bankSeenAt > 0 ? "bank seen" : "open your bank"));
+		boolean topUp = view.getCharges().stream().anyMatch(c -> c.getStatus().needsRecharge());
+		list.add(new SectionHeader("Kit", kit.isPacked() ? (topUp ? "packed, gear to top up" : "packed")
+			: view.bankSeenAt > 0 ? "bank seen" : "open your bank"));
 		for (KitCheck.Line l : kit.getLines())
 		{
 			list.add(kitLine(l));
+		}
+
+		if (!view.getCharges().isEmpty())
+		{
+			list.space(2);
+			list.add(new SectionHeader("Charged gear", chargesSub(view.getCharges())));
+			for (ChargeCheck.Line c : view.getCharges())
+			{
+				list.add(ChargeCard.of(c, TEXT, false));
+			}
 		}
 
 		if (!b.getBriefing().isEmpty())
@@ -553,6 +566,27 @@ public class BossPanel extends PluginPanel
 		return card;
 	}
 
+	/** "top up 1", "check 2", "all last the trip". */
+	static String chargesSub(List<ChargeCheck.Line> lines)
+	{
+		int top = 0;
+		int check = 0;
+		for (ChargeCheck.Line l : lines)
+		{
+			top += l.getStatus().needsRecharge() ? 1 : 0;
+			check += l.getStatus() == ChargeCheck.Status.UNCHECKED ? 1 : 0;
+		}
+		if (top > 0)
+		{
+			return "top up " + top;
+		}
+		if (check > 0)
+		{
+			return "check " + check;
+		}
+		return "all good";
+	}
+
 	private static String amount(Supply s, long n)
 	{
 		switch (s.getKind())
@@ -611,6 +645,15 @@ public class BossPanel extends PluginPanel
 		grid.add(new StatTile("Food", t.getFoodNow() < 0 ? "-" : t.getFoodNow() + " hp", t.getFoodNow() > 0));
 		grid.add(new StatTile("Prayer", t.getDosesNow() < 0 ? "-" : t.getDosesNow() + " doses", t.getDosesNow() > 0));
 		list.add(grid);
+		if (!view.getTripCharges().isEmpty())
+		{
+			list.space(2);
+			list.add(new SectionHeader("Charged gear", chargesSub(view.getTripCharges())));
+			for (ChargeCheck.Line c : view.getTripCharges())
+			{
+				list.add(ChargeCard.of(c, TEXT, true));
+			}
+		}
 		if (!t.getKillSeconds().isEmpty())
 		{
 			list.space(2);

@@ -1,6 +1,7 @@
 package com.codex.bosspilot.ui;
 
 import com.codex.bosspilot.core.Aim;
+import com.codex.bosspilot.core.ChargeCheck;
 import com.codex.bosspilot.core.Logbook;
 import com.codex.bosspilot.core.Outlook;
 import com.codex.bosspilot.core.Ranker;
@@ -34,6 +35,9 @@ public final class View
 	public final List<Reminders.Reminder> reminders;
 	/** The player's own note for the selected boss, or empty. */
 	public final String note;
+	/** The charged items for the selected boss, and for the trip under way. */
+	private List<ChargeCheck.Line> charges = Collections.emptyList();
+	private List<ChargeCheck.Line> tripCharges = Collections.emptyList();
 
 	public View(boolean loggedIn, List<Ranker.Pick> picks, Ranker.Pick next, Ranker.Pick selected, List<Setup> setups,
 		boolean setupsPending, Trip trip, Outlook outlook, Logbook logbook, Review review, Aim aim, long bankSeenAt, long now,
@@ -54,6 +58,24 @@ public final class View
 		this.now = now;
 		this.reminders = reminders;
 		this.note = note;
+	}
+
+	/** The same view with the charged items for the selected boss and for the trip. */
+	public View withCharges(List<ChargeCheck.Line> charges, List<ChargeCheck.Line> tripCharges)
+	{
+		this.charges = charges == null ? Collections.emptyList() : charges;
+		this.tripCharges = tripCharges == null ? Collections.emptyList() : tripCharges;
+		return this;
+	}
+
+	public List<ChargeCheck.Line> getCharges()
+	{
+		return charges;
+	}
+
+	public List<ChargeCheck.Line> getTripCharges()
+	{
+		return tripCharges;
 	}
 
 	public static View empty()

@@ -39,6 +39,8 @@ public final class Logbook
 		 */
 		public String ended;
 		public double killsLeft = -1;
+		/** The charged item that ran out, such as "Toxic blowpipe darts"; null when none did. */
+		public String outOf;
 
 		public double minutes()
 		{

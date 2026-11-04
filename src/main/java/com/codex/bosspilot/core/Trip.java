@@ -48,6 +48,8 @@ public final class Trip
 	private int leaveFree = -1;
 	private long leaveFoodUsed;
 	private long leaveDosesUsed;
+	/** The charged item that ran out on this trip, such as "Toxic blowpipe darts", or null. */
+	private String ranOut;
 	/** Why the tracker ended the trip, set as it ends. */
 	private Debrief.Cause cause = Debrief.Cause.TIMED_OUT;
 	/** A fight duration this soon after a kill count belongs to that kill. */
@@ -161,6 +163,18 @@ public final class Trip
 	{
 		deaths++;
 		diedSinceKill = true;
+	}
+
+	/** The game said a charged item the player carries has run out; null when it was topped up again. */
+	void ranOut(String what)
+	{
+		ranOut = what;
+	}
+
+	/** The charged item that ran out on this trip, or null. */
+	public String getRanOut()
+	{
+		return ranOut;
 	}
 
 	void endedBy(Debrief.Cause cause)
@@ -367,6 +381,7 @@ public final class Trip
 		Debrief.Left left = left();
 		r.killsLeft = left == null ? -1 : left.kills;
 		r.ended = Debrief.ending(this, left).name();
+		r.outOf = ranOut;
 		return r;
 	}
 }

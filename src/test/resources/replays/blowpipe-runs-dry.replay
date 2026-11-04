@@ -1,0 +1,73 @@
+# A Zulrah trip that runs a toxic blowpipe dry. Boss Pilot reads the blowpipe's charges from the
+# game's own Check message, carries them forward over the kills at the pace the setup gives,
+# learns the player's real pace from the next check, says on the trip plaque that the darts will
+# run out before the food, says to bank once they will not last another kill, and the debrief
+# says the trip ended out of charges.
+# Facts: scenes/zulrah.scene. The check messages are the game's, colour tags and all, as logged
+# in the Weapon Charges plugin (github.com/geheur/weapon-charges, ChargedWeapon.java and
+# WeaponChargesTest.java): "Darts: <col=007f00>Adamant dart x 16,383</col>. Scales:
+# <col=007f00>16,383 (100.0%)</col>." and "Darts: <col=007f00>None</col>. Scales: <col=007f00>99
+# (0.6%)</col>.". The kill count message is the game's, the form core/Chat reads.
+include /replays/scenes/zulrah.scene
+watch line0 tripPlaque.shown.lines.0.text
+watch outlook tripPlaque.shown.lines.1.text
+# Once kills are timed, the kill times take the second line and the outlook the third.
+watch outlook2 tripPlaque.shown.lines.2.text
+watch ending review.debrief.ending
+watch reason review.debrief.reason
+tick 3
+
+# Checked at the bank: 300 adamant darts and 2,000 scales.
+chat GAMEMESSAGE "Darts: <col=007f00>Adamant dart x 300</col>. Scales: <col=007f00>2,000 (12.2%)</col>."
+tick
+expect saved.chargesV1 ~ :[300,2000],       # "checked":[300,2000]
+
+npc SNAKEBOSS_BOSS_RANGED Zulrah 2266 3073 5 level 725 as boss
+tick 4
+expect over = "BOSS PILOT: ON A TRIP"
+expect title = Zulrah
+# No food used yet, so the blowpipe is all there is to go by: its pace from the setup.
+expect outlook ~ "Toxic blowpipe darts for about"
+
+# Two kills, two sharks each.
+items INV clear
+items INV SHARK 10
+items INV _4DOSEPRAYERRESTORE 4
+chat GAMEMESSAGE "Your Zulrah kill count is: 101."
+tick 4
+items INV clear
+items INV SHARK 8
+items INV _4DOSEPRAYERRESTORE 4
+chat GAMEMESSAGE "Your Zulrah kill count is: 102."
+tick 4
+expect line0 ~ "2 kills in"
+
+# The player checks again: 160 darts and 400 scales went in two kills, 80 and 200 a kill. That is
+# their own pace now, and the 140 darts left last under two kills, well short of the 8 sharks.
+chat GAMEMESSAGE "Darts: <col=007f00>Adamant dart x 140</col>. Scales: <col=007f00>1,600 (9.8%)</col>."
+tick 4
+expect saved.chargesV1 ~ zulrah/blowpipe
+expect saved.chargesV1 ~ :[80.0,200.0]      # the pace learnt, "perKill":[80.0,200.0]
+expect outlook2 = "Toxic blowpipe darts for about 1 more kill"
+
+# A third kill takes about 80 more: about 60 left, not enough for another.
+items INV clear
+items INV SHARK 6
+items INV _4DOSEPRAYERRESTORE 4
+chat GAMEMESSAGE "Your Zulrah kill count is: 103."
+tick 4
+expect outlook2 = "Bank after this kill: your Toxic blowpipe darts are nearly gone"
+
+# And the game says so.
+chat GAMEMESSAGE "Darts: <col=007f00>None</col>. Scales: <col=007f00>1,400 (8.5%)</col>."
+tick 2
+expect outlook2 = "Bank after this kill: your Toxic blowpipe darts are nearly gone"
+
+# Home: the trip ended out of charges, with food to spare.
+remove boss
+tick 2
+state LOGIN_SCREEN
+tick
+expect ending = OUT_OF_CHARGES
+expect reason = "Your Toxic blowpipe darts ran out after 3 kills, with food and prayer for about 3 more kills."
+expect saved.logbookV1 ~ "Toxic blowpipe darts"   # what ran out, saved with the trip

@@ -16,6 +16,7 @@ It is part of the **Codex** suite, alongside [Codex Gear Roadmap](https://github
 - **The next boss for you.** Every boss is checked against your levels, quests, slayer task, members status and bank, and put in order: the bosses open to you now first, then those a task or a piece of kit away, then the locked ones with exactly what is missing ("Needs 87 Slayer (you have 77)", "Quest: Dragon Slayer II", "Get Mith grapple first"). Pick an aim: **Move on** (new and harder bosses you are ready for), **Loot** (the bosses your own trips have paid best at) or **Quick** (the fastest kills with your gear). **Pin** any boss to keep it at the top.
 - **Your best setup, from your bank.** Boss Pilot uses the Codex combat formulas shared with Codex Gear Roadmap to put together the strongest setup you own for each boss, with its kill time, max hit, attack style and offensive prayer. Bosses of several monsters, such as the Dagannoth Kings, get a setup for each.
 - **The kit.** Food in hitpoints, prayer in doses, antipoison, antifire and the must-haves such as a key, a spade, a dragonfire shield or a facemask, checked against your bank and your pack. Every dose, charge and colour of an item counts. With the bank open, a plaque lists what to take out; first-visit items such as the ropes at the Kalphite Lair drop off once you have been.
+- **Charged gear.** For the toxic blowpipe (darts and scales), the tridents of the seas and swamp and their (e) versions, the sanguinesti staff, Tumeken's shadow, the bow of faerdhinen, the serpentine helm and crystal armour in your setup, how many kills they last: "Toxic blowpipe ~3 kills: the darts run out before your food and prayer (~6 kills). Add darts and Zulrah's scales before you go." Charges come from the game's own Check messages and are carried over each kill; the next check sets them straight and teaches Boss Pilot your own pace at that boss, and it always says how sure it is ("checked 2 kills ago, your own pace here"). At the bank the kit plaque says what to top up; on a trip the plaque says when a charged item will run out before your food, and the debrief says when a trip ended **out of charges**.
 - **The briefing.** For every boss, its main mechanics and the usual answer to each, as a guide would sum them up, to read on the Prepare tab before you go. Under it, a box for your own notes, such as the Ground Markers set to load, which the trip plaque repeats until the first kill.
 - **On the trip.** A plaque with kills, the trip clock, last, average and best kill time (from the game's own fight durations), loot so far, and how many more kills your food and prayer will last at the rate you are using them, or at your past trips' rate before the first kill. When there is not enough for another kill it says to bank after this one, and can send one notification.
 - **Reminders about you.** While at a boss: eat when your hitpoints fall under the share you set, drink when prayer runs low, a combat boost that has worn off, an antifire about to end or not drunk at a dragon, and a must-have item you came without. They look only at you, never at the boss.
@@ -28,6 +29,10 @@ It is part of the **Codex** suite, alongside [Codex Gear Roadmap](https://github
   <img src="docs/screenshots/plaque-trip-low.png" alt="The trip plaque when supplies run low">
   <br>
   <img src="docs/screenshots/plaque-kit.png" alt="The kit plaque at the bank">
+  <br>
+  <img src="docs/screenshots/plaque-kit-charges.png" alt="The kit plaque saying to top up the blowpipe">
+  <br>
+  <img src="docs/screenshots/prepare-charges.png" width="225" alt="Charged gear on the Prepare tab">
 </p>
 
 ## Bosses

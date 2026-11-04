@@ -49,6 +49,14 @@ public interface CodexBossPilotConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(keyName = "charges", name = "Charged gear", position = 4, section = planning,
+		description = "Count the charges of your blowpipe, trident, sanguinesti staff, Tumeken's shadow, bow of faerdhinen, serpentine helm"
+			+ " and crystal armour from the game's own Check messages, and say how many kills they last and when to top them up")
+	default boolean charges()
+	{
+		return true;
+	}
+
 	@ConfigItem(keyName = "tripPlaque", name = "Trip plaque", position = 0, section = trip,
 		description = "Show kills, kill times and how long your supplies will last while at a boss")
 	default boolean tripPlaque()

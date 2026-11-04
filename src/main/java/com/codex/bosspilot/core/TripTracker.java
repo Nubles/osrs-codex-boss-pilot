@@ -104,6 +104,15 @@ public final class TripTracker
 		}
 	}
 
+	/** A charged item the player carries ran out ("Toxic blowpipe darts"), or was topped up again (null). */
+	public void ranOut(String what)
+	{
+		if (trip != null)
+		{
+			trip.ranOut(what);
+		}
+	}
+
 	/** Ends the trip now, as on logging out. */
 	public void end()
 	{
