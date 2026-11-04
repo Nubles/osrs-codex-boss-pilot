@@ -1,0 +1,100 @@
+# A Moons of Peril run on the trip plaque: the trip starts near the Lunar Chest, the moons subdued
+# come from the game's varbits (and a moon's own kill count line), the supplies used are counted a
+# bite and a sip at a time, and the chest is logged from its reward with the chest count, valued at
+# the day's prices; then the next run starts afresh. Nothing here reads a fight.
+# Schematic, not the real map: the chest just stands in the scene. Facts: the Lunar Chest is object
+# 51346 (oldschool.runescape.wiki, Lunar Chest; RuneLite gameval ObjectID.CHEST_SUN01_DEFAULT01);
+# its reward is InventoryID.PMOON_REWARDINV, as RuneLite's loot tracker reads it for "Lunar Chest";
+# "1 Moon gives 1 roll", "3 Moons give 6 rolls", each moon a "1/56 chance at a piece of their
+# equipment" (Lunar Chest). The moons' varbits are VarbitID.PMOON_BOSS_*_DEAD (that they mark a
+# moon down this run is read from RuneLite's names, unconfirmed). The chest count message and the
+# moon's kill count line are unconfirmed (source: RuneLite's chat commands kill count pattern and
+# hiscore name "Lunar Chests") and are the form core/Chat reads.
+scene 1408 9600
+skill ATTACK 85
+skill STRENGTH 85
+skill DEFENCE 80
+skill HITPOINTS 85
+skill PRAYER 70
+item BREAM_FISH_COOKED "Cooked bream"
+item _4DOSEMOONLIGHTPOTION "Moonlight potion(4)"
+item _3DOSEMOONLIGHTPOTION "Moonlight potion(3)"
+item ATLATL_DART "Atlatl dart" price 120 stacks
+item SWAMP_TAR "Swamp tar" price 30 stacks
+item BLOOD_MOON_HELM "Blood Moon helm" price 900000
+items INV BREAM_FISH_COOKED 6
+items INV _4DOSEMOONLIGHTPOTION 2
+at 1440 9640
+login
+object CHEST_SUN01_DEFAULT01 1445 9645
+watch over tripPlaque.shown.over
+watch title tripPlaque.shown.title
+watch line0 tripPlaque.shown.lines.0.text
+watch line1 tripPlaque.shown.lines.1.text
+watch line2 tripPlaque.shown.lines.2.text
+never line1 ~ Protect
+never line2 ~ Protect
+tick 2
+expect over = "BOSS PILOT: ON A TRIP"
+expect title = "Moons of Peril"
+expect line0 ~ "0 chests in"
+expect line1 = "No moon subdued yet this run"
+
+# The Blood Moon down: one roll on the chest, and its 1/56 for a piece of a set not yet owned.
+varbit PMOON_BOSS_BLOOD_DEAD 1
+tick 2
+expect line1 = "1 of 3 moons: Blood"
+expect line2 = "Chest now: 1 roll, 1 in 56 for a new piece"
+
+# Between moons: a bream eaten, then a dose of moonlight potion drunk.
+items INV clear
+items INV BREAM_FISH_COOKED 5
+items INV _4DOSEMOONLIGHTPOTION 2
+tick
+items INV clear
+items INV BREAM_FISH_COOKED 5
+items INV _4DOSEMOONLIGHTPOTION 1
+items INV _3DOSEMOONLIGHTPOTION 1
+tick
+
+# The Blue Moon's own kill count line, and the Eclipse Moon's varbit: all three down.
+chat GAMEMESSAGE "Your Blue Moon kill count is: 7."
+varbit PMOON_BOSS_ECLIPSE_DEAD 1
+tick 2
+expect line1 = "All three moons subdued"
+expect line2 = "Chest now: 6 rolls, 1 in 19 for a new piece"
+
+# The chest: its reward, then its count. 96 darts at 120 and 100 tar at 30 are 14,520.
+items PMOON_REWARDINV ATLATL_DART 96 stacked
+items PMOON_REWARDINV SWAMP_TAR 100 stacked
+chat GAMEMESSAGE "Your Lunar Chest count is: 12."
+varbit PMOON_BOSS_BLOOD_DEAD 0
+varbit PMOON_BOSS_ECLIPSE_DEAD 0
+tick 2
+expect line0 ~ "1 chest in"
+expect line1 = "No moon subdued yet this run"
+expect saved.lunarV1 ~ "96 x Atlatl dart"
+expect saved.lunarV1 ~ :12,          # the chest count
+expect saved.lunarV1 ~ :14520,       # its worth at the day's prices
+expect saved.lunarV1 ~ :7,           # all three moons, as a mask
+expect saved.lunarV1 ~ "Cooked bream"
+expect saved.lunarV1 ~ "Moonlight potion"
+
+# The same reward shown again with no moon down since is the same chest, not a second one.
+items PMOON_REWARDINV clear
+items PMOON_REWARDINV ATLATL_DART 96 stacked
+items PMOON_REWARDINV SWAMP_TAR 100 stacked
+tick 12
+expect line0 ~ "1 chest in"
+
+# A second run, the Blood Moon alone, and the chest brings its helm with no count message: logged
+# once the count has had its time.
+varbit PMOON_BOSS_BLOOD_DEAD 1
+tick 2
+expect line1 = "1 of 3 moons: Blood"
+items PMOON_REWARDINV clear
+items PMOON_REWARDINV BLOOD_MOON_HELM 1
+tick 12
+expect line0 ~ "2 chests in"
+expect saved.lunarV1 ~ "Blood Moon helm"
+expect saved.lunarV1 ~ :900000,

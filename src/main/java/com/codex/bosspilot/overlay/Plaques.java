@@ -6,6 +6,7 @@ import com.codex.bosspilot.core.ChargeCheck;
 import com.codex.bosspilot.core.Format;
 import com.codex.bosspilot.core.KitCheck;
 import com.codex.bosspilot.core.Logbook;
+import com.codex.bosspilot.core.LunarRun;
 import com.codex.bosspilot.core.Outlook;
 import com.codex.bosspilot.core.Reminders;
 import com.codex.bosspilot.core.Supply;
@@ -53,6 +54,16 @@ public final class Plaques
 	public static Plaque.Content trip(Trip trip, Outlook outlook, Logbook book, List<Reminders.Reminder> reminders, String note, long now,
 		BarrowsRun barrows, ZalcanoRun zalcano)
 	{
+		return trip(trip, outlook, book, reminders, note, now, barrows, zalcano, null);
+	}
+
+	/**
+	 * The trip plaque; on a Moons of Peril trip, with the moons down this run, what the chest would
+	 * roll now and the player's own chest value an hour.
+	 */
+	public static Plaque.Content trip(Trip trip, Outlook outlook, Logbook book, List<Reminders.Reminder> reminders, String note, long now,
+		BarrowsRun barrows, ZalcanoRun zalcano, LunarRun moons)
+	{
 		List<Plaque.Line> lines = new ArrayList<>();
 		boolean urgent = false;
 		List<Reminders.Reminder> sorted = new ArrayList<>(reminders);
@@ -62,7 +73,7 @@ public final class Plaques
 			lines.add(new Plaque.Line(r.getText(), r.isUrgent() ? Theme.EMBER : Theme.GOLD));
 			urgent |= r.isUrgent();
 		}
-		String kills = (barrows != null ? Format.plural(trip.getKills(), "chest", "chests") : Format.plural(trip.getKills(), "kill", "kills"))
+		String kills = (barrows != null || moons != null ? Format.plural(trip.getKills(), "chest", "chests") : Format.plural(trip.getKills(), "kill", "kills"))
 			+ " in " + Format.clock(trip.elapsed(now) / 1000.0);
 		lines.add(new Plaque.Line(kills, Theme.TEXT, trip.getLoot() > 0 ? Format.number(trip.getLoot()) + " loot" : null));
 		if (barrows != null)
@@ -73,6 +84,16 @@ public final class Plaques
 		{
 			lines.add(new Plaque.Line(zalcano.plaqueText(), zalcano.getLog().sinceAny() == 0 && !zalcano.getLog().isEmpty() ? Theme.GREEN : Theme.VIOLET,
 				zalcano.paceText()));
+		}
+		if (moons != null)
+		{
+			lines.add(new Plaque.Line(moons.plaqueText(), moons.getSubdued().isEmpty() ? Theme.TEXT_MUTED
+				: moons.getSubdued().size() == 3 ? Theme.GREEN : Theme.TEXT, moons.paceText()));
+			String chest = moons.chestText();
+			if (chest != null)
+			{
+				lines.add(new Plaque.Line(chest, Theme.VIOLET));
+			}
 		}
 		if (!trip.getKillSeconds().isEmpty())
 		{

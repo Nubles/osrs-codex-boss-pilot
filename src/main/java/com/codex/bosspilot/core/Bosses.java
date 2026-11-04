@@ -307,10 +307,35 @@ public final class Bosses
 		.brief("Rare drops", "The tool seed goes to one player, more often the one with more points. The shard comes more often the more you contribute. Smolcano is the same for everyone eligible.")
 		.build();
 
+	/**
+	 * The Moons of Peril, as a run of up to three moons and the Lunar Chest. Facts: Neypotzli ("The
+	 * entrance to Neypotzli is accessed from the northernmost end of Cam Torum"; the Lunar Chest is in
+	 * the Ancient Shrine), Moons of Peril ("At least one Moon must be subdued to open the Lunar
+	 * Chest"; "it is highly recommended to gather supplies from within these caverns"), Lunar Chest
+	 * (the rolls), Perilous Moons (the quest; "Combat level 75" recommended; "It is also possible to
+	 * bank between fighting each boss without losing progress"). No line here is about a fight.
+	 */
+	public static final Boss MOONS = Boss.builder("moons", "Moons of Peril", Boss.Tier.MID)
+		.where("Neypotzli, beneath Cam Torum", "The Quetzal to Cam Torum, then the entrance at the northernmost end of Cam Torum")
+		.notes("Three moons, each in its own cavern off the antechamber. The Lunar Chest is in the Ancient Shrine.",
+			"Subdue at least one moon to open the chest; it resets each time it is opened.",
+			"Food and potions made in the caverns are the usual supplies; the supply crates hold the tools.",
+			"Neypotzli needs Perilous Moons.")
+		.npcs("Blood Moon", "Blue Moon", "Eclipse Moon")
+		.kc("Lunar Chest")
+		.lootEvent("Lunar Chest")
+		.quest("PERILOUS_MOONS")
+		.suggested(75)
+		.kit(Supply.optional("House teleport", 1, HOUSE))
+		.brief("The chest", "One moon subdued gives one roll on the chest, two give three rolls and all three give six. A set piece takes the place of the rolls.")
+		.brief("Set pieces", "Each moon subdued is a 1 in 56 chance at a piece of its own set, and you get every piece of a set before a duplicate.")
+		.brief("Banking", "You can bank between moons without losing the run's progress.")
+		.build();
+
 	public static final List<Boss> ALL = Collections.unmodifiableList(Arrays.asList(
 		OBOR, BRYOPHYTA, SCURRIUS, GIANT_MOLE, BARROWS, SARACHNIS, KALPHITE_QUEEN, KING_BLACK_DRAGON,
 		DAGANNOTH_KINGS, KRAKEN, THERMONUCLEAR, GROTESQUE_GUARDIANS, ZULRAH, VORKATH,
-		GRAARDOR, ZILYANA, KREEARRA, KRIL, ZALCANO));
+		GRAARDOR, ZILYANA, KREEARRA, KRIL, ZALCANO, MOONS));
 
 	private Bosses()
 	{

@@ -8,6 +8,7 @@ import com.codex.bosspilot.core.Format;
 import com.codex.bosspilot.core.ChargeCheck;
 import com.codex.bosspilot.core.KitCheck;
 import com.codex.bosspilot.core.Logbook;
+import com.codex.bosspilot.core.LunarRun;
 import com.codex.bosspilot.core.Ranker;
 import com.codex.bosspilot.core.Readiness;
 import com.codex.bosspilot.core.Reminders;
@@ -167,7 +168,7 @@ public class BossPanel extends PluginPanel
 		Trip t = view.trip;
 		if (t != null)
 		{
-			crest.update("ON A TRIP: " + t.getBoss().getName().toUpperCase(), t.getKills(), "kill", "kills", view.outlook.text(),
+			crest.update("ON A TRIP: " + t.getBoss().getName().toUpperCase(), t.getKills(), chests(t) ? "chest" : "kill", chests(t) ? "chests" : "kills", view.outlook.text(),
 				view.outlook.shortText(), outlookColor(), Theme.GOLD);
 			return;
 		}
@@ -389,6 +390,11 @@ public class BossPanel extends PluginPanel
 		if (b == Bosses.ZALCANO && zalcano != null)
 		{
 			zalcano(list, zalcano, false);
+		}
+		LunarRun moons = view.getMoons();
+		if (b == Bosses.MOONS && moons != null)
+		{
+			moons(list, moons, false);
 		}
 
 		if (!b.getBriefing().isEmpty())
@@ -663,11 +669,20 @@ public class BossPanel extends PluginPanel
 		{
 			best = best <= 0 ? e.best : Math.min(best, e.best);
 		}
-		grid.add(new StatTile(t.getBoss() == Bosses.BARROWS ? "Chests" : "Kills", String.valueOf(t.getKills()), true));
+		grid.add(new StatTile(t.getBoss() == Bosses.BARROWS || t.getBoss() == Bosses.MOONS ? "Chests" : "Kills", String.valueOf(t.getKills()), true));
 		grid.add(new StatTile("Loot", Format.number(t.getLoot()), t.getLoot() > 0));
 		grid.add(new StatTile("Average", t.getKillSeconds().isEmpty() ? "-" : Format.clock(t.averageKill()), !t.getKillSeconds().isEmpty()));
 		grid.add(new StatTile("Best", best > 0 ? Format.clock(best) : "-", best > 0));
-		grid.add(new StatTile("Food", t.getFoodNow() < 0 ? "-" : t.getFoodNow() + " hp", t.getFoodNow() > 0));
+		String bites = t.getBoss() == Bosses.MOONS && view.getMoons() != null ? view.getMoons().foodTileText() : null;
+		if (bites != null)
+		{
+			// Cavern food heals by the player's levels, so the tile counts the bites eaten instead.
+			grid.add(new StatTile("Food eaten", bites, true));
+		}
+		else
+		{
+			grid.add(new StatTile("Food", t.getFoodNow() < 0 ? "-" : t.getFoodNow() + " hp", t.getFoodNow() > 0));
+		}
 		if (t.getBoss().getTier() == Boss.Tier.SKILLING)
 		{
 			// No prayer on a skilling boss: the trip's pace instead.
@@ -688,6 +703,10 @@ public class BossPanel extends PluginPanel
 		{
 			zalcano(list, view.getZalcano(), true);
 		}
+		if (t.getBoss() == Bosses.MOONS && view.getMoons() != null)
+		{
+			moons(list, view.getMoons(), true);
+		}
 		if (!view.getTripCharges().isEmpty())
 		{
 			list.space(2);
@@ -700,7 +719,7 @@ public class BossPanel extends PluginPanel
 		if (!t.getKillSeconds().isEmpty())
 		{
 			list.space(2);
-			list.add(new SectionHeader("Kill times"));
+			list.add(new SectionHeader(chests(t) ? "Run times" : "Kill times"));
 			list.add(killTimes(t.getKillSeconds()));
 		}
 		if (t.getDamage() > 0)
@@ -732,6 +751,29 @@ public class BossPanel extends PluginPanel
 			list.add(new SectionHeader("The set", (24 - r.getMissing().size()) + " of 24"));
 			list.add(BarrowsCard.set(r, TEXT));
 		}
+	}
+
+	/** Whether a trip counts chests rather than kills: Barrows and the Moons of Peril. */
+	private static boolean chests(Trip t)
+	{
+		return t.getBoss() == Bosses.BARROWS || t.getBoss() == Bosses.MOONS;
+	}
+
+	/** The Moons of Peril: the run under way, the player's own Lunar Chests, and the three sets. */
+	private void moons(StackPanel list, LunarRun r, boolean onTrip)
+	{
+		if (onTrip || !r.getSubdued().isEmpty())
+		{
+			list.space(2);
+			list.add(new SectionHeader("This run", r.getSubdued().size() + " of 3"));
+			list.add(MoonsCard.run(r, TEXT));
+		}
+		list.space(2);
+		list.add(new SectionHeader("Your chests", r.getLog().isEmpty() ? null : "KC " + Format.number(r.getLog().chests)));
+		list.add(MoonsCard.chests(r, TEXT));
+		list.space(2);
+		list.add(new SectionHeader("The sets", r.owned() + " of 12"));
+		list.add(MoonsCard.sets(r, TEXT));
 	}
 
 	/** Zalcano: the player's own kills, the rare drops against their rates, and the way in. */

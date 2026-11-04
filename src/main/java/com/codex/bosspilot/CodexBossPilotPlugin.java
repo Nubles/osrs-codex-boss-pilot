@@ -11,18 +11,23 @@ import com.codex.bosspilot.core.Barrows;
 import com.codex.bosspilot.core.BarrowsRun;
 import com.codex.bosspilot.core.Boss;
 import com.codex.bosspilot.core.Bosses;
-import com.codex.bosspilot.core.Charged;
 import com.codex.bosspilot.core.ChargeBook;
 import com.codex.bosspilot.core.ChargeCheck;
-import com.codex.bosspilot.core.ChestLog;
+import com.codex.bosspilot.core.Charged;
 import com.codex.bosspilot.core.Chat;
+import com.codex.bosspilot.core.ChestLog;
 import com.codex.bosspilot.core.Debrief;
+import com.codex.bosspilot.core.Format;
 import com.codex.bosspilot.core.KitCheck;
 import com.codex.bosspilot.core.Logbook;
+import com.codex.bosspilot.core.LunarLog;
+import com.codex.bosspilot.core.LunarRun;
+import com.codex.bosspilot.core.Moons;
 import com.codex.bosspilot.core.Outlook;
 import com.codex.bosspilot.core.Ranker;
 import com.codex.bosspilot.core.Reminders;
 import com.codex.bosspilot.core.Review;
+import com.codex.bosspilot.core.RunSupplies;
 import com.codex.bosspilot.core.Setup;
 import com.codex.bosspilot.core.Stock;
 import com.codex.bosspilot.core.Supply;
@@ -49,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -82,6 +88,7 @@ import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemSpawned;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.ItemContainerChanged;
+import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.DBTableID;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.InventoryID;
@@ -158,6 +165,8 @@ public class CodexBossPilotPlugin extends Plugin
 	static final int CHEST_TICKS = 10;
 	/** How long after a Zalcano kill is logged the pet's message still belongs to it. */
 	static final int ZALCANO_LATE_TICKS = 5;
+	/** A Lunar Chest reward seen again this soon with the same contents is the same chest, shown again. */
+	static final int LUNAR_SAME_TICKS = 100;
 	/** The varbits of the six brothers, in Barrows.Brother order. */
 	private static final int[] BROTHER_VARBITS = {
 		VarbitID.BARROWS_KILLED_AHRIM, VarbitID.BARROWS_KILLED_DHAROK, VarbitID.BARROWS_KILLED_GUTHAN,
@@ -250,6 +259,29 @@ public class CodexBossPilotPlugin extends Plugin
 	private Trip lastZalcanoTrip;
 	/** The tick the last Zalcano kill was logged, so a pet message just after it joins it. */
 	private int lastZalcanoTick = -1000;
+	// ---- Moons of Peril ----
+	/** The player's own Lunar Chests. */
+	private LunarLog lunarLog = new LunarLog();
+	/** The moons subdued on the run under way, from the game's varbits and kill count lines. */
+	private final Set<Moons.Moon> moonsDown = java.util.EnumSet.noneOf(Moons.Moon.class);
+	/** The moons' varbits as last read, a bit a moon, so a moon newly down counts even before they clear. */
+	private int moonVarbits;
+	/** After a chest, the moons' varbits are the old run's until the game clears them. */
+	private boolean moonsCleared;
+	/** The supplies the run under way has used. */
+	private final RunSupplies runSupplies = new RunSupplies();
+	/** Lunar Chest objects loaded in the scene now. */
+	private int lunarChests;
+	/** A chest being put together from its reward and the chest count message. */
+	private int lunarKc = -1;
+	private List<String> lunarItems;
+	private long lunarValue = -1;
+	private int lunarWait = -1;
+	/** The last chest logged: when, at which tick, and its contents, so the same reward shown again is not logged twice. */
+	private long lastLunarAt;
+	private int lastLunarTick = -1000;
+	private List<String> lastLunarItems;
+
 	/** The player's ways into Prifddinas, from Codex Wayfinder. */
 	private WayIn wayIn = WayIn.none();
 
@@ -330,6 +362,7 @@ public class CodexBossPilotPlugin extends Plugin
 		nearby = findNearby();
 		readBarrows();
 		readZalcano();
+		readMoons();
 		Stock pack = carried;
 		tracker.observe(nearby, pack.foodHeal(), pack.doses(PRAYER_POTIONS), freeSlots(), System.currentTimeMillis());
 		Trip on = tracker.current();
@@ -356,6 +389,7 @@ public class CodexBossPilotPlugin extends Plugin
 		if (state == GameState.LOADING)
 		{
 			cryptObjects.clear();
+			lunarChests = 0;
 		}
 		if (state == GameState.LOGIN_SCREEN || state == GameState.HOPPING)
 		{
@@ -396,7 +430,7 @@ public class CodexBossPilotPlugin extends Plugin
 	{
 		if (CodexBossPilotConfig.GROUP.equals(event.getGroup()) && !Logbook.KEY.equals(event.getKey()) && !BANK_KEY.equals(event.getKey())
 			&& !ChargeBook.KEY.equals(event.getKey()) && !ChestLog.KEY.equals(event.getKey()) && !TUNNEL_KEY.equals(event.getKey())
-			&& !ZalcanoLog.KEY.equals(event.getKey()))
+			&& !ZalcanoLog.KEY.equals(event.getKey()) && !LunarLog.KEY.equals(event.getKey()))
 		{
 			if ("boost".equals(event.getKey()))
 			{
@@ -428,6 +462,20 @@ public class CodexBossPilotPlugin extends Plugin
 			// The Barrows chest's reward; clue caskets share this container, but not this place.
 			readChest(event.getItemContainer());
 		}
+		else if (id == InventoryID.PMOON_REWARDINV)
+		{
+			readLunar(event.getItemContainer());
+		}
+	}
+
+	@Subscribe
+	public void onWidgetLoaded(WidgetLoaded event)
+	{
+		// The Lunar Chest's reward, read as RuneLite's loot tracker reads it when the interface opens.
+		if (event.getGroupId() == InterfaceID.PMOON_REWARD)
+		{
+			readLunar(client.getItemContainer(InventoryID.PMOON_REWARDINV));
+		}
 	}
 
 	@Subscribe
@@ -451,6 +499,10 @@ public class CodexBossPilotPlugin extends Plugin
 		{
 			cryptObjects.put(o.getWorldLocation(), b);
 		}
+		if (o.getId() == Moons.CHEST || o.getId() == Moons.CHEST_OPEN)
+		{
+			lunarChests++;
+		}
 	}
 
 	@Subscribe
@@ -460,6 +512,10 @@ public class CodexBossPilotPlugin extends Plugin
 		if (Barrows.Brother.byObject(o.getId()) != null)
 		{
 			cryptObjects.remove(o.getWorldLocation());
+		}
+		if (o.getId() == Moons.CHEST || o.getId() == Moons.CHEST_OPEN)
+		{
+			lunarChests = Math.max(0, lunarChests - 1);
 		}
 	}
 
@@ -479,7 +535,22 @@ public class CodexBossPilotPlugin extends Plugin
 		Chat.Kc kc = Chat.kc(message);
 		if (kc != null)
 		{
+			Moons.Moon moon = Moons.Moon.byName(kc.name);
+			if (moon != null)
+			{
+				// A moon's own kill count line: it is down this run.
+				moonsDown.add(moon);
+				return;
+			}
 			Boss boss = Bosses.byKc(kc.name);
+			if (boss == Bosses.MOONS)
+			{
+				// The chest count: the chest is logged, and counted on the trip, from its reward.
+				logbook.noteKc(boss, kc.count);
+				lunarCount(kc.count);
+				saveLogbook();
+				return;
+			}
 			if (boss != null)
 			{
 				logbook.noteKc(boss, kc.count);
@@ -505,7 +576,9 @@ public class CodexBossPilotPlugin extends Plugin
 			return;
 		}
 		double seconds = Chat.duration(message);
-		if (seconds > 0)
+		Trip on = tracker.current();
+		// A moon's own fight time is not a run's: the run is timed from chest to chest.
+		if (seconds > 0 && (on == null || on.getBoss() != Bosses.MOONS))
 		{
 			tracker.duration(seconds, now);
 			Trip t = tracker.current();
@@ -534,7 +607,7 @@ public class CodexBossPilotPlugin extends Plugin
 		// Chest loot, such as the Barrows chest, comes as an event rather than an NPC drop.
 		Trip t = tracker.current();
 		// The Barrows chest is read from its reward by the chest log, which adds it to the trip.
-		if (t != null && t.getBoss() != Bosses.BARROWS && t.getBoss().getLootEvent() != null
+		if (t != null && t.getBoss() != Bosses.BARROWS && t.getBoss() != Bosses.MOONS && t.getBoss().getLootEvent() != null
 			&& t.getBoss().getLootEvent().equalsIgnoreCase(event.getName()))
 		{
 			tracker.loot(t.getBoss(), value(event.getItems()), System.currentTimeMillis());
@@ -779,6 +852,12 @@ public class CodexBossPilotPlugin extends Plugin
 			// The whole prison is the trip, with or without Zalcano up between kills.
 			return Bosses.ZALCANO;
 		}
+		if (lunarChests > 0 || moonsHudShowing())
+		{
+			// The moons are a run through Neypotzli to the chest: near the chest or with the moons' own
+			// panel up, the trip goes on between fights too.
+			return Bosses.MOONS;
+		}
 		for (NPC npc : client.getTopLevelWorldView().npcs())
 		{
 			if (npc == null || npc.getName() == null)
@@ -854,6 +933,181 @@ public class CodexBossPilotPlugin extends Plugin
 		List<String> owned = new ArrayList<>(bankStock.asMap().keySet());
 		owned.addAll(carried.asMap().keySet());
 		return new ZalcanoRun(zalcanoLog, owned, wayIn);
+	}
+
+	// ---- Moons of Peril ----
+
+	/** Whether the game's Moons of Peril panel (RuneLite's InterfaceID.PmoonHud) is up. */
+	private boolean moonsHudShowing()
+	{
+		Widget hud = client.getWidget(InterfaceID.PmoonHud.UNIVERSE);
+		return hud != null && !hud.isHidden();
+	}
+
+	/**
+	 * Each tick: the moons down this run from the game's varbits (kept, as the game may clear them
+	 * when the chest opens), the supplies the run uses, and the chest once both its reward and its
+	 * count are in.
+	 */
+	private void readMoons()
+	{
+		if (client.getGameState() != GameState.LOGGED_IN)
+		{
+			return;
+		}
+		int mask = 0;
+		for (Moons.Moon m : Moons.Moon.values())
+		{
+			if (client.getVarbitValue(m.getDeadVarbit()) != 0)
+			{
+				mask |= 1 << m.ordinal();
+			}
+		}
+		int risen = mask & ~moonVarbits;
+		moonVarbits = mask;
+		if (mask == 0)
+		{
+			moonsCleared = false;
+		}
+		moonsDown.addAll(Moons.fromMask(moonsCleared ? risen : mask));
+		Trip t = tracker.current();
+		if (t != null && t.getBoss() == Bosses.MOONS)
+		{
+			runSupplies.observe(carried.asMap(), bankOpen());
+		}
+		else
+		{
+			runSupplies.clear();
+		}
+		if (lunarWait >= 0)
+		{
+			lunarWait++;
+			if (lunarKc >= 0 && lunarItems != null || lunarWait > CHEST_TICKS)
+			{
+				commitLunar();
+			}
+		}
+	}
+
+	/** The chest count message: with the chest being put together, or a moment late for the one just logged. */
+	private void lunarCount(int count)
+	{
+		if (lunarWait < 0 && lunarItems == null && ticks - lastLunarTick <= CHEST_TICKS)
+		{
+			lunarLog.lateKc(count);
+			saveLunar();
+			return;
+		}
+		lunarKc = count;
+		lunarWait = lunarWait < 0 ? 0 : lunarWait;
+	}
+
+	/** The Lunar Chest's reward, valued at the day's prices. */
+	private void readLunar(ItemContainer c)
+	{
+		if (c == null)
+		{
+			return;
+		}
+		Map<String, Long> counts = new LinkedHashMap<>();
+		long worth = 0;
+		for (Item item : c.getItems())
+		{
+			if (item.getId() < 0 || item.getQuantity() <= 0)
+			{
+				continue;
+			}
+			counts.merge(name(item.getId()), (long) item.getQuantity(), Long::sum);
+			worth += (long) itemManager.getItemPrice(item.getId()) * item.getQuantity();
+		}
+		if (counts.isEmpty())
+		{
+			return;
+		}
+		List<String> items = new ArrayList<>();
+		counts.forEach((n, q) -> items.add(q == 1 ? n : Format.number(q) + " x " + n));
+		lunarItems = items;
+		lunarValue = worth;
+		lunarWait = lunarWait < 0 ? 0 : lunarWait;
+	}
+
+	/** Logs the chest, adds it to the trip and starts the next run afresh. */
+	private void commitLunar()
+	{
+		long now = System.currentTimeMillis();
+		if (lunarItems == null && lunarKc < 0 || lunarKc < 0 && sameAsLast())
+		{
+			resetLunar();
+			return;
+		}
+		// A count with no reward seen is still a chest, logged without its worth.
+		LunarLog.Chest chest = new LunarLog.Chest();
+		chest.at = now;
+		chest.kc = lunarKc;
+		chest.value = lunarItems == null ? -1 : lunarValue;
+		chest.moons = moonsDown.isEmpty() ? -1 : Moons.mask(moonsDown);
+		if (lunarItems != null)
+		{
+			chest.items.addAll(lunarItems);
+			chest.pieces.addAll(Moons.pieces(lunarItems));
+		}
+		Trip t = tracker.current();
+		boolean onTrip = t != null && t.getBoss() == Bosses.MOONS;
+		if (onTrip)
+		{
+			long from = Math.max(t.getStart(), lastLunarAt);
+			chest.seconds = Math.max(1, (now - from) / 1000);
+			chest.used.putAll(runSupplies.used());
+		}
+		tracker.kill(Bosses.MOONS, now);
+		if (chest.value > 0)
+		{
+			tracker.loot(Bosses.MOONS, chest.value, now);
+		}
+		chargesKill(Bosses.MOONS);
+		lunarLog.add(chest);
+		lastLunarAt = now;
+		lastLunarTick = ticks;
+		lastLunarItems = lunarItems;
+		moonsDown.clear();
+		moonsCleared = moonVarbits != 0;
+		runSupplies.nextRun();
+		resetLunar();
+		saveLunar();
+		saveFinished();
+	}
+
+	/**
+	 * Whether the reward is the last chest's shown again, such as the interface opening after its
+	 * items came: the same contents with no moon down since, or within a minute.
+	 */
+	private boolean sameAsLast()
+	{
+		return lunarItems != null && lunarItems.equals(lastLunarItems) && (moonsDown.isEmpty() || ticks - lastLunarTick <= LUNAR_SAME_TICKS);
+	}
+
+	private void resetLunar()
+	{
+		lunarKc = -1;
+		lunarItems = null;
+		lunarValue = -1;
+		lunarWait = -1;
+	}
+
+	private void saveLunar()
+	{
+		if (configManager.getRSProfileKey() != null)
+		{
+			configManager.setRSProfileConfiguration(CodexBossPilotConfig.GROUP, LunarLog.KEY, lunarLog.toJson(gson));
+		}
+	}
+
+	/** The moons down this run, its supplies, the chest log and the set pieces not yet owned. */
+	private LunarRun lunarRun()
+	{
+		List<String> owned = new ArrayList<>(bankStock.asMap().keySet());
+		owned.addAll(carried.asMap().keySet());
+		return new LunarRun(moonsDown, runSupplies.used(), lunarLog, lunarLog.missing(owned)).withTripUsed(runSupplies.tripUsed());
 	}
 
 	// ---- Barrows ----
@@ -1211,6 +1465,14 @@ public class CodexBossPilotPlugin extends Plugin
 		chestWait = -1;
 		lastChestAt = 0;
 		zalcanoLog = ZalcanoLog.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, ZalcanoLog.KEY));
+		lunarLog = LunarLog.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, LunarLog.KEY));
+		moonsDown.clear();
+		moonsCleared = false;
+		runSupplies.clear();
+		resetLunar();
+		lastLunarAt = 0;
+		lastLunarTick = -1000;
+		lastLunarItems = null;
 		zalcanoLoot.clear();
 		lastZalcanoKillAt = 0;
 		lastZalcanoTrip = null;
@@ -1372,9 +1634,10 @@ public class CodexBossPilotPlugin extends Plugin
 		String tripNote = trip == null ? "" : note(trip.getBoss());
 		BarrowsRun barrows = loggedIn ? barrowsRun() : null;
 		ZalcanoRun zalcano = loggedIn ? zalcanoRun() : null;
+		LunarRun moons = loggedIn ? lunarRun() : null;
 		tripPlaque.show(loggedIn && trip != null && config.tripPlaque()
 			? Plaques.trip(trip, outlook, logbook, reminders, tripNote, now, trip.getBoss() == Bosses.BARROWS ? barrows : null,
-				trip.getBoss() == Bosses.ZALCANO ? zalcano : null) : null);
+				trip.getBoss() == Bosses.ZALCANO ? zalcano : null, trip.getBoss() == Bosses.MOONS ? moons : null) : null);
 		List<ChargeCheck.Line> nextCharges = !loggedIn || next == null || !config.charges() ? Collections.emptyList()
 			: chargeLines(next.getBoss(), setups.getOrDefault(next.getBoss().getKey(), Collections.emptyList()), null,
 				ChargeCheck.kitKills(next.getBoss(), logbook.rates(next.getBoss())));
@@ -1395,7 +1658,8 @@ public class CodexBossPilotPlugin extends Plugin
 			review, in.aim, bankSeenAt, now, reminders, shown == null ? "" : note(shown.getBoss()))
 			.withCharges(shownCharges, tripCharges)
 			.withBarrows(barrows)
-			.withZalcano(zalcano);
+			.withZalcano(zalcano)
+			.withMoons(moons);
 		SwingUtilities.invokeLater(() -> p.update(view));
 	}
 

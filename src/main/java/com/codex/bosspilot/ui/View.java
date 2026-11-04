@@ -4,6 +4,7 @@ import com.codex.bosspilot.core.Aim;
 import com.codex.bosspilot.core.BarrowsRun;
 import com.codex.bosspilot.core.ChargeCheck;
 import com.codex.bosspilot.core.Logbook;
+import com.codex.bosspilot.core.LunarRun;
 import com.codex.bosspilot.core.Outlook;
 import com.codex.bosspilot.core.Ranker;
 import com.codex.bosspilot.core.Reminders;
@@ -42,6 +43,7 @@ public final class View
 	private List<ChargeCheck.Line> tripCharges = Collections.emptyList();
 	private BarrowsRun barrows;
 	private ZalcanoRun zalcano;
+	private LunarRun moons;
 
 	public View(boolean loggedIn, List<Ranker.Pick> picks, Ranker.Pick next, Ranker.Pick selected, List<Setup> setups,
 		boolean setupsPending, Trip trip, Outlook outlook, Logbook logbook, Review review, Aim aim, long bankSeenAt, long now,
@@ -84,6 +86,19 @@ public final class View
 	{
 		this.zalcano = zalcano;
 		return this;
+	}
+
+	/** The same view with the Moons of Peril run and Lunar Chest log; null leaves it out. */
+	public View withMoons(LunarRun moons)
+	{
+		this.moons = moons;
+		return this;
+	}
+
+	/** The Moons of Peril run and Lunar Chest log, or null. */
+	public LunarRun getMoons()
+	{
+		return moons;
 	}
 
 	/** The Zalcano kill log, or null. */
