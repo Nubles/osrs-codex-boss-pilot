@@ -1,0 +1,30 @@
+# A Sarachnis trip on the trip plaque: it starts when she is in sight, counts the kill from the
+# game's kill count message, warns when the prayer runs low, and ends at logout.
+# Facts: scenes/sarachnis.scene. The kill count message is the game's ("Your Sarachnis kill count
+# is: 52.", the form core/Chat reads).
+include /replays/scenes/sarachnis.scene
+watch line0 tripPlaque.shown.lines.0.text
+watch line1 tripPlaque.shown.lines.1.text
+tick 3
+expect title = null
+
+npc SARACHNIS Sarachnis 1842 9905 2 level 318 as boss
+tick 4
+expect over = "BOSS PILOT: ON A TRIP"
+expect title = Sarachnis
+expect line0 ~ "0 kills"
+
+# A kill, with most of the supplies gone: one prayer potion left of four.
+items INV clear
+items INV SHARK 4
+items INV _4DOSEPRAYERRESTORE 1
+chat GAMEMESSAGE "Your Sarachnis kill count is: 52."
+tick 4
+expect line0 ~ "1 kill in"
+expect line1 = "Bank after this kill: your prayer is nearly gone"
+expect saved.logbookV1 ~ :52,           # the kill count, saved: "kc":52
+
+# Logging out ends the trip.
+state LOGIN_SCREEN
+tick
+expect title = null
