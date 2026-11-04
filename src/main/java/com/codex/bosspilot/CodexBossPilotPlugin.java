@@ -1,5 +1,6 @@
 package com.codex.bosspilot;
 
+import com.codex.bosspilot.notes.FieldNotes;
 import com.codex.bosspilot.combat.Fighter;
 import com.codex.bosspilot.combat.Planner;
 import com.codex.bosspilot.combat.Result;
@@ -159,6 +160,9 @@ public class CodexBossPilotPlugin extends Plugin
 	@Inject
 	private CodexBossPilotConfig config;
 
+	/** The optional local record of what the plugin read and decided. */
+	private FieldNotes notes;
+
 	private final Plaque tripPlaque = new Plaque(OverlayPosition.TOP_LEFT);
 	private final Plaque kitPlaque = new Plaque(OverlayPosition.TOP_LEFT);
 	private final TripTracker tracker = new TripTracker();
@@ -198,6 +202,11 @@ public class CodexBossPilotPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+		notes = new FieldNotes(this::getPluginDirectory, gson);
+		if (config.fieldNotes())
+		{
+			notes.open();
+		}
 		try
 		{
 			data = RoadmapData.load(gson);
@@ -234,6 +243,11 @@ public class CodexBossPilotPlugin extends Plugin
 	@Override
 	protected void shutDown()
 	{
+		if (notes != null)
+		{
+			notes.shutdown();
+			notes = null;
+		}
 		saveFinished();
 		overlayManager.remove(tripPlaque);
 		overlayManager.remove(kitPlaque);
@@ -315,6 +329,18 @@ public class CodexBossPilotPlugin extends Plugin
 	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
+		if (CodexBossPilotConfig.GROUP.equals(event.getGroup()) && "fieldNotes".equals(event.getKey()) && notes != null)
+		{
+			if (config.fieldNotes())
+			{
+				notes.open();
+			}
+			else
+			{
+				notes.close();
+			}
+			return;
+		}
 		if (CodexBossPilotConfig.GROUP.equals(event.getGroup()) && !Logbook.KEY.equals(event.getKey()) && !BANK_KEY.equals(event.getKey()))
 		{
 			if ("boost".equals(event.getKey()))
@@ -343,6 +369,19 @@ public class CodexBossPilotPlugin extends Plugin
 	@Subscribe
 	public void onChatMessage(ChatMessage event)
 	{
+		if (notes != null && notes.isOpen())
+		{
+			net.runelite.api.ChatMessageType chatType = event.getType();
+			// Only the game's own lines: other players' chat is never written down.
+			if (chatType == net.runelite.api.ChatMessageType.GAMEMESSAGE || chatType == net.runelite.api.ChatMessageType.SPAM
+				|| chatType == net.runelite.api.ChatMessageType.MESBOX)
+			{
+				com.google.gson.JsonObject chatNote = new com.google.gson.JsonObject();
+				chatNote.addProperty("type", chatType.name());
+				chatNote.addProperty("text", event.getMessage());
+				notes.note("chat", chatNote);
+			}
+		}
 		if (event.getType() != ChatMessageType.GAMEMESSAGE && event.getType() != ChatMessageType.SPAM)
 		{
 			return;
@@ -753,6 +792,16 @@ public class CodexBossPilotPlugin extends Plugin
 			warned = false;
 		}
 
+		if (notes.isOpen())
+		{
+			// The pick, the trip as tracked and the supply outlook, so a wrong call can be traced.
+			com.google.gson.JsonObject n = new com.google.gson.JsonObject();
+			n.add("next", notes.safe(next));
+			n.add("picks", notes.safe(picks == null ? null : picks.subList(0, Math.min(5, picks.size()))));
+			n.add("trip", notes.safe(trip));
+			n.addProperty("outlook", outlook.text());
+			notes.noteChanged("plan", n);
+		}
 		List<Reminders.Reminder> reminders = loggedIn ? reminders(trip) : Collections.emptyList();
 		String tripNote = trip == null ? "" : note(trip.getBoss());
 		tripPlaque.show(loggedIn && trip != null && config.tripPlaque() ? Plaques.trip(trip, outlook, logbook, reminders, tripNote, now) : null);
