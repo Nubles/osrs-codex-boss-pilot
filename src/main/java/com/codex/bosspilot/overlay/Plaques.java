@@ -4,6 +4,9 @@ import com.codex.bosspilot.core.Barrows;
 import com.codex.bosspilot.core.BarrowsRun;
 import com.codex.bosspilot.core.ChargeCheck;
 import com.codex.bosspilot.core.Format;
+import com.codex.bosspilot.core.Gauntlet;
+import com.codex.bosspilot.core.GauntletRun;
+import com.codex.bosspilot.core.GauntletWatch;
 import com.codex.bosspilot.core.KitCheck;
 import com.codex.bosspilot.core.Logbook;
 import com.codex.bosspilot.core.LunarRun;
@@ -111,6 +114,44 @@ public final class Plaques
 			lines.add(new Plaque.Line("Your note: " + cut(note.replace('\n', ' '), NOTE_CHARS), Theme.TEXT_MUTED));
 		}
 		return new Plaque.Content("BOSS PILOT: ON A TRIP", trip.getBoss().getName(), urgent ? Theme.EMBER : color(outlook), lines);
+	}
+
+	/**
+	 * The trip plaque in the Gauntlet: the runs of this trip, where the run under way stands (the
+	 * preparation clock against the player's best, and once the Hunllef fight begins, only how long
+	 * the preparation took: nothing on it moves during the fight), the last run against the ghost,
+	 * and the rarest reward not yet owned.
+	 */
+	public static Plaque.Content gauntlet(Trip trip, GauntletRun run, long now)
+	{
+		List<Plaque.Line> lines = new ArrayList<>();
+		lines.add(new Plaque.Line(Format.plural(trip.getKills(), "run", "runs") + " done in " + Format.clock(trip.elapsed(now) / 1000.0),
+			Theme.TEXT, trip.getDeaths() > 0 ? Format.plural(trip.getDeaths(), "death", "deaths") : null));
+		String title = trip.getBoss().getName();
+		if (run != null)
+		{
+			String phase = run.plaquePhase();
+			if (phase != null)
+			{
+				GauntletWatch.Phase p = run.getPhase();
+				lines.add(new Plaque.Line(phase, p == GauntletWatch.Phase.PREP ? Theme.TEAL : Theme.TEXT_MUTED, run.ghostText()));
+				if (run.getMode() == Gauntlet.Mode.CORRUPTED)
+				{
+					title = "The Corrupted Gauntlet";
+				}
+			}
+			String last = run.plaqueLast();
+			if (last != null)
+			{
+				lines.add(new Plaque.Line(last, Theme.TEXT_MUTED, run.plaqueLastRight()));
+			}
+			String drop = run.plaqueDropText();
+			if (drop != null)
+			{
+				lines.add(new Plaque.Line(drop, Theme.VIOLET, run.plaqueDropRight()));
+			}
+		}
+		return new Plaque.Content("BOSS PILOT: ON A TRIP", title, Theme.GOLD, lines);
 	}
 
 	/** The Barrows run on the trip plaque. */

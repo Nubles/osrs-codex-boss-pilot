@@ -4,6 +4,7 @@ import com.codex.bosspilot.core.Aim;
 import com.codex.bosspilot.core.BarrowsRun;
 import com.codex.bosspilot.core.ChargeCheck;
 import com.codex.bosspilot.core.Logbook;
+import com.codex.bosspilot.core.GauntletRun;
 import com.codex.bosspilot.core.LunarRun;
 import com.codex.bosspilot.core.Outlook;
 import com.codex.bosspilot.core.Ranker;
@@ -44,6 +45,7 @@ public final class View
 	private BarrowsRun barrows;
 	private ZalcanoRun zalcano;
 	private LunarRun moons;
+	private GauntletRun gauntlet;
 
 	public View(boolean loggedIn, List<Ranker.Pick> picks, Ranker.Pick next, Ranker.Pick selected, List<Setup> setups,
 		boolean setupsPending, Trip trip, Outlook outlook, Logbook logbook, Review review, Aim aim, long bankSeenAt, long now,
@@ -93,6 +95,19 @@ public final class View
 	{
 		this.moons = moons;
 		return this;
+	}
+
+	/** The same view with the Gauntlet run and run log; null leaves it out. */
+	public View withGauntlet(GauntletRun gauntlet)
+	{
+		this.gauntlet = gauntlet;
+		return this;
+	}
+
+	/** The Gauntlet run and run log, or null. */
+	public GauntletRun getGauntlet()
+	{
+		return gauntlet;
 	}
 
 	/** The Moons of Peril run and Lunar Chest log, or null. */

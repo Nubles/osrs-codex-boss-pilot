@@ -20,6 +20,10 @@ import com.codex.bosspilot.core.Debrief;
 import com.codex.bosspilot.core.Format;
 import com.codex.bosspilot.core.KitCheck;
 import com.codex.bosspilot.core.Logbook;
+import com.codex.bosspilot.core.Gauntlet;
+import com.codex.bosspilot.core.GauntletLog;
+import com.codex.bosspilot.core.GauntletRun;
+import com.codex.bosspilot.core.GauntletWatch;
 import com.codex.bosspilot.core.LunarLog;
 import com.codex.bosspilot.core.LunarRun;
 import com.codex.bosspilot.core.Moons;
@@ -165,6 +169,12 @@ public class CodexBossPilotPlugin extends Plugin
 	static final int CHEST_TICKS = 10;
 	/** How long after a Zalcano kill is logged the pet's message still belongs to it. */
 	static final int ZALCANO_LATE_TICKS = 5;
+	/** How long after a Gauntlet run is logged the pet's message still belongs to it. */
+	static final int GAUNTLET_LATE_TICKS = 5;
+	/** How long after a completed run a rare seed newly in the pack is taken as its reward (20 minutes). */
+	static final int GAUNTLET_REWARD_TICKS = 2000;
+	/** The Hunllef within this many tiles: the fight has begun, when the game's own mark is not read. */
+	static final int HUNLLEF_NEAR = 16;
 	/** A Lunar Chest reward seen again this soon with the same contents is the same chest, shown again. */
 	static final int LUNAR_SAME_TICKS = 100;
 	/** The varbits of the six brothers, in Barrows.Brother order. */
@@ -259,6 +269,19 @@ public class CodexBossPilotPlugin extends Plugin
 	private Trip lastZalcanoTrip;
 	/** The tick the last Zalcano kill was logged, so a pet message just after it joins it. */
 	private int lastZalcanoTick = -1000;
+	// ---- The Gauntlet ----
+	/** The player's own Gauntlet runs. */
+	private GauntletLog gauntletLog = new GauntletLog();
+	/** The run under way. */
+	private final GauntletWatch gauntletWatch = new GauntletWatch();
+	/** Game ticks since the plugin started, never reset: a Gauntlet run's clock, through its loading screens. */
+	private int gauntletTicks;
+	/** The tick the last Gauntlet run was logged, so a pet message just after it joins it. */
+	private int lastGauntletTick = -1000;
+	/** The tick the last completed run was logged, for the seeds taken from the reward chest after it. */
+	private int lastGauntletWinTick = -100000;
+	/** The rare seeds in the pack as last counted, by reward; null before the first count. */
+	private Map<Gauntlet.Unique, Integer> gauntletPack;
 	// ---- Moons of Peril ----
 	/** The player's own Lunar Chests. */
 	private LunarLog lunarLog = new LunarLog();
@@ -363,6 +386,8 @@ public class CodexBossPilotPlugin extends Plugin
 		readBarrows();
 		readZalcano();
 		readMoons();
+		gauntletTicks++;
+		readGauntlet();
 		Stock pack = carried;
 		tracker.observe(nearby, pack.foodHeal(), pack.doses(PRAYER_POTIONS), freeSlots(), System.currentTimeMillis());
 		Trip on = tracker.current();
@@ -393,6 +418,7 @@ public class CodexBossPilotPlugin extends Plugin
 		}
 		if (state == GameState.LOGIN_SCREEN || state == GameState.HOPPING)
 		{
+			endGauntlet();
 			tracker.end(state == GameState.HOPPING ? Debrief.Cause.HOPPED : Debrief.Cause.LOGGED_OUT);
 			saveFinished();
 			nearby = null;
@@ -430,7 +456,8 @@ public class CodexBossPilotPlugin extends Plugin
 	{
 		if (CodexBossPilotConfig.GROUP.equals(event.getGroup()) && !Logbook.KEY.equals(event.getKey()) && !BANK_KEY.equals(event.getKey())
 			&& !ChargeBook.KEY.equals(event.getKey()) && !ChestLog.KEY.equals(event.getKey()) && !TUNNEL_KEY.equals(event.getKey())
-			&& !ZalcanoLog.KEY.equals(event.getKey()) && !LunarLog.KEY.equals(event.getKey()))
+			&& !ZalcanoLog.KEY.equals(event.getKey()) && !LunarLog.KEY.equals(event.getKey())
+			&& !GauntletLog.KEY.equals(event.getKey()))
 		{
 			if ("boost".equals(event.getKey()))
 			{
@@ -456,6 +483,10 @@ public class CodexBossPilotPlugin extends Plugin
 		else if (id == InventoryID.INV || id == InventoryID.WORN)
 		{
 			readCarried();
+			if (id == InventoryID.INV)
+			{
+				gauntletSeeds(event.getItemContainer());
+			}
 		}
 		else if (id == InventoryID.TRAIL_REWARDINV && region() == CRYPT_REGION)
 		{
@@ -529,6 +560,10 @@ public class CodexBossPilotPlugin extends Plugin
 		String message = Text.removeTags(event.getMessage());
 		long now = System.currentTimeMillis();
 		if (config.charges() && readCharges(message, now))
+		{
+			return;
+		}
+		if (readGauntletChat(message, now))
 		{
 			return;
 		}
@@ -618,7 +653,10 @@ public class CodexBossPilotPlugin extends Plugin
 	public void onHitsplatApplied(HitsplatApplied event)
 	{
 		// Only hits the player takes, for the fight review; the boss's own hitsplats are never read.
-		if (event.getActor() == client.getLocalPlayer() && event.getHitsplat().getHitsplatType() != HitsplatID.HEAL)
+		// In the Gauntlet not even those: nothing there counts the fight while it goes on.
+		Trip on = tracker.current();
+		if (event.getActor() == client.getLocalPlayer() && event.getHitsplat().getHitsplatType() != HitsplatID.HEAL
+			&& (on == null || on.getBoss() != Bosses.GAUNTLET))
 		{
 			tracker.hit(event.getHitsplat().getAmount());
 		}
@@ -630,6 +668,7 @@ public class CodexBossPilotPlugin extends Plugin
 		if (event.getActor() == client.getLocalPlayer())
 		{
 			tracker.death();
+			gauntletWatch.died(gauntletTicks);
 		}
 	}
 
@@ -847,6 +886,12 @@ public class CodexBossPilotPlugin extends Plugin
 			// Barrows is a run through the mounds, crypts and tunnels, not one fight in sight.
 			return Bosses.BARROWS;
 		}
+		if (inGauntlet() || region == Gauntlet.LOBBY_REGION)
+		{
+			// A Gauntlet run is a preparation in the maze, then the Hunllef: the whole run and the
+			// lobby between runs are the trip.
+			return Bosses.GAUNTLET;
+		}
 		if (region == Zalcano.PRISON_REGION)
 		{
 			// The whole prison is the trip, with or without Zalcano up between kills.
@@ -933,6 +978,202 @@ public class CodexBossPilotPlugin extends Plugin
 		List<String> owned = new ArrayList<>(bankStock.asMap().keySet());
 		owned.addAll(carried.asMap().keySet());
 		return new ZalcanoRun(zalcanoLog, owned, wayIn);
+	}
+
+	// ---- The Gauntlet ----
+
+	/** Whether the game marks the player as in a Gauntlet run, or they stand in its maze. */
+	private boolean inGauntlet()
+	{
+		if (client.getVarbitValue(VarbitID.PLAYER_IN_GAUNTLET) != 0 || client.getVarbitValue(VarbitID.GAUNTLET_BOSS_STARTED) != 0)
+		{
+			return true;
+		}
+		int r = gauntletRegion();
+		return r == Gauntlet.REGULAR_REGION || r == Gauntlet.CORRUPTED_REGION;
+	}
+
+	/** The map region of the player's instance as RuneLite's Discord plugin reads it, or -1. */
+	private int gauntletRegion()
+	{
+		Player me = client.getLocalPlayer();
+		if (me == null || client.getGameState() != GameState.LOGGED_IN)
+		{
+			return -1;
+		}
+		WorldPoint p = WorldPoint.fromLocalInstance(client, me.getLocalLocation());
+		return p == null ? -1 : p.getRegionID();
+	}
+
+	/** The Hunllef in sight close by, by mode, or null. Read only to time the fight's start. */
+	private Gauntlet.Mode hunllefNear()
+	{
+		Player me = client.getLocalPlayer();
+		if (me == null)
+		{
+			return null;
+		}
+		WorldPoint at = me.getWorldLocation();
+		for (NPC npc : client.getTopLevelWorldView().npcs())
+		{
+			Gauntlet.Mode m = npc == null ? null : Gauntlet.hunllef(npc.getId());
+			if (m != null && npc.getWorldLocation().distanceTo(at) <= HUNLLEF_NEAR)
+			{
+				return m;
+			}
+		}
+		return null;
+	}
+
+	/** Each tick: the run under way, from the game's own marks, and logs it once over. */
+	private void readGauntlet()
+	{
+		if (client.getGameState() != GameState.LOGGED_IN)
+		{
+			return;
+		}
+		boolean in = inGauntlet();
+		Gauntlet.Mode hunllef = in ? hunllefNear() : null;
+		Gauntlet.Mode hint = hunllef;
+		int r = in ? gauntletRegion() : -1;
+		if (r == Gauntlet.CORRUPTED_REGION || in && client.getVarbitValue(VarbitID.GAUNTLET_CORRUPTED) != 0)
+		{
+			hint = Gauntlet.Mode.CORRUPTED;
+		}
+		else if (hint == null && r == Gauntlet.REGULAR_REGION)
+		{
+			hint = Gauntlet.Mode.REGULAR;
+		}
+		boolean boss = client.getVarbitValue(VarbitID.GAUNTLET_BOSS_STARTED) != 0 || hunllef != null;
+		GauntletLog.Run run = gauntletWatch.tick(gauntletTicks, System.currentTimeMillis(), in, boss, hint);
+		if (run != null)
+		{
+			logGauntlet(run);
+		}
+	}
+
+	/** The game's Gauntlet lines: the completion count, the run and preparation times, the pet. */
+	private boolean readGauntletChat(String message, long now)
+	{
+		Chat.Kc kc = Chat.kc(message);
+		Gauntlet.Mode mode = kc == null ? null : Gauntlet.Mode.byKc(kc.name);
+		if (mode != null)
+		{
+			gauntletWatch.completion(gauntletTicks, now, mode, kc.count);
+			GauntletLog.Totals t = gauntletLog.totals(mode);
+			t.kc = kc.count;
+			logbook.noteKc(Bosses.GAUNTLET, Math.max(0, gauntletLog.regular.kc) + Math.max(0, gauntletLog.corrupted.kc));
+			tracker.kill(Bosses.GAUNTLET, now);
+			saveLogbook();
+			saveFinished();
+			return true;
+		}
+		Gauntlet.Time time = Gauntlet.duration(message);
+		if (time != null)
+		{
+			gauntletWatch.duration(time);
+			Trip on = tracker.current();
+			if (on != null && on.getBoss() == Bosses.GAUNTLET)
+			{
+				// The game's whole run time, for the trip's run times; it comes before the count.
+				tracker.duration(time.seconds, now);
+			}
+			return true;
+		}
+		double prep = Gauntlet.preparation(message);
+		if (prep > 0)
+		{
+			gauntletWatch.preparation(prep);
+			return true;
+		}
+		if (Gauntlet.petMessage(message) && (inGauntlet() || gauntletTicks - lastGauntletTick <= GAUNTLET_LATE_TICKS))
+		{
+			if (!gauntletWatch.pet() && gauntletTicks - lastGauntletTick <= GAUNTLET_LATE_TICKS && gauntletLog.late(Gauntlet.Unique.PET.getName()))
+			{
+				saveGauntlet();
+			}
+			return true;
+		}
+		return false;
+	}
+
+	/** Logs a finished run. */
+	private void logGauntlet(GauntletLog.Run run)
+	{
+		gauntletLog.add(run);
+		lastGauntletTick = gauntletTicks;
+		if (run.completed())
+		{
+			lastGauntletWinTick = gauntletTicks;
+		}
+		saveGauntlet();
+	}
+
+	/** Logging out or hopping ends the run under way. */
+	private void endGauntlet()
+	{
+		GauntletLog.Run run = gauntletWatch.abort(gauntletTicks);
+		if (run != null)
+		{
+			logGauntlet(run);
+		}
+		gauntletWatch.newSitting();
+	}
+
+	/**
+	 * The rare seeds in the pack: one newly there soon after a completed run, with the bank shut,
+	 * is taken from the reward chest and belongs to that run.
+	 */
+	private void gauntletSeeds(ItemContainer inv)
+	{
+		Map<Gauntlet.Unique, Integer> now = new java.util.EnumMap<>(Gauntlet.Unique.class);
+		if (inv != null)
+		{
+			for (Item item : inv.getItems())
+			{
+				Gauntlet.Unique u = Gauntlet.Unique.byId(item.getId());
+				if (u != null && u != Gauntlet.Unique.PET)
+				{
+					now.merge(u, Math.max(1, item.getQuantity()), Integer::sum);
+				}
+			}
+		}
+		Map<Gauntlet.Unique, Integer> before = gauntletPack;
+		gauntletPack = now;
+		if (before == null || bankOpen() || gauntletTicks - lastGauntletWinTick > GAUNTLET_REWARD_TICKS)
+		{
+			return;
+		}
+		boolean changed = false;
+		for (Map.Entry<Gauntlet.Unique, Integer> e : now.entrySet())
+		{
+			if (e.getValue() > before.getOrDefault(e.getKey(), 0))
+			{
+				changed |= gauntletLog.late(e.getKey().getName());
+			}
+		}
+		if (changed)
+		{
+			saveGauntlet();
+		}
+	}
+
+	private void saveGauntlet()
+	{
+		if (configManager.getRSProfileKey() != null)
+		{
+			configManager.setRSProfileConfiguration(CodexBossPilotConfig.GROUP, GauntletLog.KEY, gauntletLog.toJson(gson));
+		}
+	}
+
+	/** The run under way, the run log and the rare rewards owned. */
+	private GauntletRun gauntletRun()
+	{
+		List<String> owned = new ArrayList<>(bankStock.asMap().keySet());
+		owned.addAll(carried.asMap().keySet());
+		return new GauntletRun(gauntletLog, gauntletWatch.phase(),
+			gauntletWatch.phase() == GauntletWatch.Phase.NONE ? null : gauntletWatch.getMode(),
+			gauntletWatch.prepElapsed(gauntletTicks), gauntletWatch.prepTaken(), owned);
 	}
 
 	// ---- Moons of Peril ----
@@ -1466,6 +1707,12 @@ public class CodexBossPilotPlugin extends Plugin
 		lastChestAt = 0;
 		zalcanoLog = ZalcanoLog.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, ZalcanoLog.KEY));
 		lunarLog = LunarLog.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, LunarLog.KEY));
+		gauntletLog = GauntletLog.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, GauntletLog.KEY));
+		gauntletWatch.abort(gauntletTicks);
+		gauntletWatch.newSitting();
+		lastGauntletTick = -1000;
+		lastGauntletWinTick = -100000;
+		gauntletPack = null;
 		moonsDown.clear();
 		moonsCleared = false;
 		runSupplies.clear();
@@ -1609,9 +1856,11 @@ public class CodexBossPilotPlugin extends Plugin
 		}
 
 		Trip trip = tracker.current();
-		Outlook outlook = trip == null ? Outlook.UNKNOWN : Outlook.of(trip, logbook.rates(trip.getBoss()));
+		// In the Gauntlet nothing carried comes in, so there are no supplies to count down.
+		boolean gauntlet = trip != null && trip.getBoss() == Bosses.GAUNTLET;
+		Outlook outlook = trip == null || gauntlet ? Outlook.UNKNOWN : Outlook.of(trip, logbook.rates(trip.getBoss()));
 		List<ChargeCheck.Line> tripCharges = Collections.emptyList();
-		if (trip != null && loggedIn && config.charges())
+		if (trip != null && !gauntlet && loggedIn && config.charges())
 		{
 			tripCharges = chargeLines(trip.getBoss(), setups.getOrDefault(trip.getBoss().getKey(), Collections.emptyList()), trip,
 				outlook.getLevel() == Outlook.Level.UNKNOWN ? -1 : outlook.getKills());
@@ -1630,13 +1879,16 @@ public class CodexBossPilotPlugin extends Plugin
 			warned = false;
 		}
 
-		List<Reminders.Reminder> reminders = loggedIn ? reminders(trip) : Collections.emptyList();
+		// No eat or prayer reminders in the Gauntlet: nothing there speaks during the Hunllef fight.
+		List<Reminders.Reminder> reminders = loggedIn && !gauntlet ? reminders(trip) : Collections.emptyList();
 		String tripNote = trip == null ? "" : note(trip.getBoss());
 		BarrowsRun barrows = loggedIn ? barrowsRun() : null;
 		ZalcanoRun zalcano = loggedIn ? zalcanoRun() : null;
 		LunarRun moons = loggedIn ? lunarRun() : null;
+		GauntletRun gauntletRun = loggedIn ? gauntletRun() : null;
 		tripPlaque.show(loggedIn && trip != null && config.tripPlaque()
-			? Plaques.trip(trip, outlook, logbook, reminders, tripNote, now, trip.getBoss() == Bosses.BARROWS ? barrows : null,
+			? gauntlet ? Plaques.gauntlet(trip, gauntletRun, now)
+			: Plaques.trip(trip, outlook, logbook, reminders, tripNote, now, trip.getBoss() == Bosses.BARROWS ? barrows : null,
 				trip.getBoss() == Bosses.ZALCANO ? zalcano : null, trip.getBoss() == Bosses.MOONS ? moons : null) : null);
 		List<ChargeCheck.Line> nextCharges = !loggedIn || next == null || !config.charges() ? Collections.emptyList()
 			: chargeLines(next.getBoss(), setups.getOrDefault(next.getBoss().getKey(), Collections.emptyList()), null,
@@ -1659,7 +1911,8 @@ public class CodexBossPilotPlugin extends Plugin
 			.withCharges(shownCharges, tripCharges)
 			.withBarrows(barrows)
 			.withZalcano(zalcano)
-			.withMoons(moons);
+			.withMoons(moons)
+			.withGauntlet(gauntletRun);
 		SwingUtilities.invokeLater(() -> p.update(view));
 	}
 

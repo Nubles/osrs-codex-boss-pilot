@@ -59,6 +59,8 @@ public final class Boss
 	private final List<Supply> kit;
 	private final boolean members;
 	private final boolean wilderness;
+	/** False where the player's own gear stays outside, as in the Gauntlet. */
+	private final boolean bringsGear;
 	private final String lootEvent;
 	private final List<Brief> briefing;
 
@@ -104,6 +106,7 @@ public final class Boss
 		kit = Collections.unmodifiableList(new ArrayList<>(b.kit));
 		members = b.members;
 		wilderness = b.wilderness;
+		bringsGear = b.bringsGear;
 		lootEvent = b.lootEvent;
 		briefing = Collections.unmodifiableList(new ArrayList<>(b.briefing));
 	}
@@ -212,6 +215,12 @@ public final class Boss
 		return wilderness;
 	}
 
+	/** Whether the player fights in their own gear: false in the Gauntlet, where it stays outside. */
+	public boolean bringsGear()
+	{
+		return bringsGear;
+	}
+
 	/** The loot event name for bosses whose loot comes from a chest, such as "Barrows", or null. */
 	public String getLootEvent()
 	{
@@ -302,6 +311,7 @@ public final class Boss
 		private final List<Supply> kit = new ArrayList<>();
 		private boolean members = true;
 		private boolean wilderness;
+		private boolean bringsGear = true;
 		private String lootEvent;
 		private final List<Brief> briefing = new ArrayList<>();
 
@@ -394,6 +404,13 @@ public final class Boss
 		public Builder wilderness()
 		{
 			wilderness = true;
+			return this;
+		}
+
+		/** The player's own gear and supplies stay outside: nothing to rate or pack for the fight. */
+		public Builder gearless()
+		{
+			bringsGear = false;
 			return this;
 		}
 
