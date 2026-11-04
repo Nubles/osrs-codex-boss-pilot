@@ -2,6 +2,7 @@ package com.codex.bosspilot;
 
 import com.codex.bosspilot.combat.Fighter;
 import com.codex.bosspilot.core.Aim;
+import com.codex.bosspilot.core.Barrows;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
@@ -55,6 +56,14 @@ public interface CodexBossPilotConfig extends Config
 	default boolean charges()
 	{
 		return true;
+	}
+
+	@ConfigItem(keyName = "barrowsAim", name = "Barrows potential aim", position = 6, section = trip,
+		description = "The reward potential to plan the Barrows tunnel kills for: the fewest kills that bring a run to it, on the trip plaque and panel."
+			+ " Off hides the plan")
+	default Barrows.Aim barrowsAim()
+	{
+		return Barrows.Aim.BLOOD_RUNES;
 	}
 
 	@ConfigItem(keyName = "tripPlaque", name = "Trip plaque", position = 0, section = trip,
