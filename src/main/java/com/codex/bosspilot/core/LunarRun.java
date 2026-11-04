@@ -19,6 +19,7 @@ public final class LunarRun
 	private final Map<String, Long> used;
 	private final LunarLog log;
 	private final List<String> missing;
+	private Map<String, Long> tripUsed = Collections.emptyMap();
 
 	public LunarRun(Set<Moons.Moon> subdued, Map<String, Long> used, LunarLog log, List<String> missing)
 	{
@@ -26,6 +27,43 @@ public final class LunarRun
 		this.used = used == null ? Collections.emptyMap() : used;
 		this.log = log == null ? new LunarLog() : log;
 		this.missing = missing == null ? Moons.missing(Collections.emptyList()) : missing;
+	}
+
+	/** The same run with what the whole trip used, by name. */
+	public LunarRun withTripUsed(Map<String, Long> tripUsed)
+	{
+		this.tripUsed = tripUsed == null ? Collections.emptyMap() : tripUsed;
+		return this;
+	}
+
+	/**
+	 * The Food tile on the trip when a food eaten has no fixed heal: cooked bream and cooked moss
+	 * lizard heal by the player's levels (OSRS Wiki: "1/3rd of the player's Cooking level or
+	 * Fishing level, whichever skill is the lowest"; "1/3rd of the player's Cooking level or 1/2 of
+	 * their Hunter level ... whichever heals less"), so the tile counts the bites eaten this trip
+	 * instead of hitpoints. Null when every food eaten has a known heal.
+	 */
+	public String foodTileText()
+	{
+		return foodTileText(tripUsed);
+	}
+
+	static String foodTileText(Map<String, Long> used)
+	{
+		long bites = 0;
+		boolean unknown = false;
+		for (Map.Entry<String, Long> e : used.entrySet())
+		{
+			String name = e.getKey();
+			if (Food.heal(name) <= 0 && Moons.supply(name + "(4)"))
+			{
+				// A potion, counted by the dose.
+				continue;
+			}
+			bites += e.getValue();
+			unknown |= Food.heal(name) <= 0;
+		}
+		return unknown ? Format.plural(bites, "bite", "bites") : null;
 	}
 
 	public Set<Moons.Moon> getSubdued()

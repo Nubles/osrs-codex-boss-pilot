@@ -18,6 +18,8 @@ public final class RunSupplies
 
 	private Map<String, Long> last;
 	private final Map<String, Long> used = new LinkedHashMap<>();
+	/** What the whole trip used, kept across runs until the trip ends. */
+	private final Map<String, Long> tripUsed = new LinkedHashMap<>();
 
 	/** The supplies carried now, by item name; the bank being open makes this look not count. */
 	public void observe(Map<String, Long> carried, boolean bankOpen)
@@ -38,7 +40,11 @@ public final class RunSupplies
 			}
 			if (drop > 0 && drop <= MAX_STEP)
 			{
-				step.forEach((k, v) -> used.merge(k, v, Long::sum));
+				step.forEach((k, v) ->
+				{
+					used.merge(k, v, Long::sum);
+					tripUsed.merge(k, v, Long::sum);
+				});
 			}
 		}
 		last = now;
@@ -48,6 +54,12 @@ public final class RunSupplies
 	public Map<String, Long> used()
 	{
 		return new LinkedHashMap<>(used);
+	}
+
+	/** What this trip used so far, over all its runs, by name. */
+	public Map<String, Long> tripUsed()
+	{
+		return new LinkedHashMap<>(tripUsed);
 	}
 
 	/** Starts the next run, keeping the look at what is carried now. */
@@ -60,6 +72,7 @@ public final class RunSupplies
 	public void clear()
 	{
 		used.clear();
+		tripUsed.clear();
 		last = null;
 	}
 

@@ -673,7 +673,16 @@ public class BossPanel extends PluginPanel
 		grid.add(new StatTile("Loot", Format.number(t.getLoot()), t.getLoot() > 0));
 		grid.add(new StatTile("Average", t.getKillSeconds().isEmpty() ? "-" : Format.clock(t.averageKill()), !t.getKillSeconds().isEmpty()));
 		grid.add(new StatTile("Best", best > 0 ? Format.clock(best) : "-", best > 0));
-		grid.add(new StatTile("Food", t.getFoodNow() < 0 ? "-" : t.getFoodNow() + " hp", t.getFoodNow() > 0));
+		String bites = t.getBoss() == Bosses.MOONS && view.getMoons() != null ? view.getMoons().foodTileText() : null;
+		if (bites != null)
+		{
+			// Cavern food heals by the player's levels, so the tile counts the bites eaten instead.
+			grid.add(new StatTile("Food eaten", bites, true));
+		}
+		else
+		{
+			grid.add(new StatTile("Food", t.getFoodNow() < 0 ? "-" : t.getFoodNow() + " hp", t.getFoodNow() > 0));
+		}
 		if (t.getBoss().getTier() == Boss.Tier.SKILLING)
 		{
 			// No prayer on a skilling boss: the trip's pace instead.

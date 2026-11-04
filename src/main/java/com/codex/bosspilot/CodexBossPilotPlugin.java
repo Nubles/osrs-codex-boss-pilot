@@ -1107,7 +1107,7 @@ public class CodexBossPilotPlugin extends Plugin
 	{
 		List<String> owned = new ArrayList<>(bankStock.asMap().keySet());
 		owned.addAll(carried.asMap().keySet());
-		return new LunarRun(moonsDown, runSupplies.used(), lunarLog, lunarLog.missing(owned));
+		return new LunarRun(moonsDown, runSupplies.used(), lunarLog, lunarLog.missing(owned)).withTripUsed(runSupplies.tripUsed());
 	}
 
 	// ---- Barrows ----

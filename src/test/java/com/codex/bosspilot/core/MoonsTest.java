@@ -206,6 +206,44 @@ public class MoonsTest
 	}
 
 	@Test
+	public void cavernFoodIsCountedInBites()
+	{
+		// Cooked bream and cooked moss lizard heal by the player's levels, so Food knows no fixed heal for them.
+		assertEquals(0, Food.heal("Cooked bream"));
+		assertEquals(0, Food.heal("Cooked moss lizard"));
+		Map<String, Long> used = new HashMap<>();
+		used.put("Cooked bream", 4L);
+		used.put("Shark", 1L);
+		used.put("Moonlight potion", 3L);
+		assertEquals("5 bites", LunarRun.foodTileText(used));
+		used.clear();
+		used.put("Cooked moss lizard", 1L);
+		assertEquals("1 bite", LunarRun.foodTileText(used));
+		// Only food with a known heal, or only potions: the tile keeps showing hitpoints.
+		used.clear();
+		used.put("Shark", 3L);
+		used.put("Saradomin brew", 2L);
+		assertNull(LunarRun.foodTileText(used));
+		assertNull(LunarRun.foodTileText(Collections.emptyMap()));
+
+		RunSupplies s = new RunSupplies();
+		Map<String, Long> carried = new HashMap<>();
+		carried.put("Cooked bream", 3L);
+		s.observe(carried, false);
+		carried.put("Cooked bream", 2L);
+		s.observe(carried, false);
+		s.nextRun();
+		carried.put("Cooked bream", 1L);
+		s.observe(carried, false);
+		assertEquals(Long.valueOf(1), s.used().get("Cooked bream"));
+		assertEquals(Long.valueOf(2), s.tripUsed().get("Cooked bream"));
+		LunarRun r = new LunarRun(null, s.used(), new LunarLog(), null).withTripUsed(s.tripUsed());
+		assertEquals("2 bites", r.foodTileText());
+		s.clear();
+		assertTrue(s.tripUsed().isEmpty());
+	}
+
+	@Test
 	public void chatReadsTheChestCount()
 	{
 		Chat.Kc kc = Chat.kc("Your Lunar Chest count is: 1,204.");
