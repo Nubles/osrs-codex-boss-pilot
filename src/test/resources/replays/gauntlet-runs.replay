@@ -1,0 +1,107 @@
+# Gauntlet runs on the trip plaque: the trip starts in the lobby, a run starts when the game marks
+# the player as in the Gauntlet, its preparation ends when the game marks the Hunllef's fight as
+# started, and it ends on the completion count line. The pet's message joins the run, a seed taken
+# from the reward chest afterwards joins it too, and a run left in the preparation is logged as left.
+# Nothing on the plaque moves during the Hunllef fight, and nothing speaks about the fight.
+# Schematic, not the real map. Facts: the varbits are RuneLite gameval VarbitID.PLAYER_IN_GAUNTLET
+# (9178) and GAUNTLET_BOSS_STARTED (9177) (that they mark a run and the fight is read from their
+# names, unconfirmed); the lobby is region 12127 and the corrupted and regular mazes are regions 7768
+# and 7512 (RuneLite's Discord plugin, MG_GAUNTLET and MG_CORRUPTED_GAUNTLET); "Your Corrupted
+# Gauntlet completion count is:" and "Corrupted challenge duration:" are RuneLite's chat commands
+# lines; "You have a funny feeling like you're being followed." is Youngllef's (oldschool.runescape.wiki,
+# Youngllef). The corrupted preparation limit is 7:30 (The Gauntlet).
+scene 3000 6070
+skill ATTACK 85
+skill STRENGTH 85
+skill DEFENCE 80
+skill RANGED 85
+skill MAGIC 80
+skill HITPOINTS 85
+skill PRAYER 77
+item SHARK "Shark"
+item PRIF_ARMOUR_SEED "Crystal armour seed"
+items INV SHARK 2
+at 3030 6100
+login
+watch over tripPlaque.shown.over
+watch title tripPlaque.shown.title
+watch line0 tripPlaque.shown.lines.0.text
+watch line1 tripPlaque.shown.lines.1.text
+watch right1 tripPlaque.shown.lines.1.right
+watch line2 tripPlaque.shown.lines.2.text
+watch right2 tripPlaque.shown.lines.2.right
+never line1 ~ "pray"
+never line1 ~ "attack"
+never line1 ~ "tornado"
+never line2 ~ "Supplies"
+tick 2
+expect over = "BOSS PILOT: ON A TRIP"
+expect title = "The Gauntlet"
+expect line0 ~ "0 runs done in"
+
+# Into the corrupted maze: the preparation clock runs against the 7:30 limit.
+scene 1900 5600
+varbit PLAYER_IN_GAUNTLET 1
+at 1950 5660
+tick 2
+expect title = "The Corrupted Gauntlet"
+expect line1 ~ "Preparing 0:0"
+expect line1 ~ "/ 7:30"
+tick 100
+expect line1 ~ "Preparing 1:0"
+
+# The Hunllef's fight begins, through a loading screen: the line holds still from here to the end
+# of the fight, and the preparation's clock is not reset by the load.
+state LOADING
+state LOGGED_IN
+varbit GAUNTLET_BOSS_STARTED 1
+tick 2
+expect line1 ~ "Hunllef fight, prep 1:0"
+always line1 ~ "Hunllef fight, prep 1:0"
+tick 150
+expect line1 ~ "Hunllef fight, prep 1:0"
+forget
+never line1 ~ "pray"
+never line1 ~ "attack"
+
+# The game's lines: the run time, then the count, then the pet a tick later.
+chat GAMEMESSAGE "Corrupted challenge duration: <col=ff0000>2:40.20</col>. Personal best: 2:30.00."
+chat GAMEMESSAGE "Your Corrupted Gauntlet completion count is: <col=ff0000>7</col>."
+tick
+chat GAMEMESSAGE "You have a funny feeling like you're being followed."
+tick 4
+expect line0 ~ "1 run done in"
+expect saved.gauntletV1 ~ Youngllef
+expect saved.gauntletV1 ~ :7,            # the completion count, saved: "kc":7
+expect saved.gauntletV1 ~ CORRUPTED
+expect line1 = "Last: KC 7 in 2:40"
+
+# Out to the lobby, and an armour seed from the reward chest joins that run.
+varbit GAUNTLET_BOSS_STARTED 0
+varbit PLAYER_IN_GAUNTLET 0
+scene 3000 6070
+at 3030 6100
+tick 2
+items INV PRIF_ARMOUR_SEED 1
+tick 2
+expect saved.gauntletV1 ~ "Crystal armour seed"
+expect title = "The Gauntlet"
+
+# A regular run left in the preparation: logged as left, with no reward roll.
+scene 1820 5600
+varbit PLAYER_IN_GAUNTLET 1
+at 1880 5660
+tick 20
+expect line1 ~ "Preparing 0:1"
+expect line1 ~ "/ 10:00"
+varbit PLAYER_IN_GAUNTLET 0
+scene 3000 6070
+at 3030 6100
+tick 2
+expect saved.gauntletV1 ~ LEFT
+expect line1 = "Last: left in the prep"
+
+# Logging out ends the trip; the log stays.
+state LOGIN_SCREEN
+tick
+expect title = null

@@ -8,6 +8,10 @@ import com.codex.bosspilot.core.Format;
 import com.codex.bosspilot.core.ChargeCheck;
 import com.codex.bosspilot.core.KitCheck;
 import com.codex.bosspilot.core.Logbook;
+import com.codex.bosspilot.core.Gauntlet;
+import com.codex.bosspilot.core.GauntletLog;
+import com.codex.bosspilot.core.GauntletRun;
+import com.codex.bosspilot.core.GauntletWatch;
 import com.codex.bosspilot.core.LunarRun;
 import com.codex.bosspilot.core.Ranker;
 import com.codex.bosspilot.core.Readiness;
@@ -166,9 +170,17 @@ public class BossPanel extends PluginPanel
 			return;
 		}
 		Trip t = view.trip;
+		if (t != null && t.getBoss() == Bosses.GAUNTLET && view.getGauntlet() != null)
+		{
+			// No supplies to count in the Gauntlet: the crest says where the run stands.
+			String phase = view.getGauntlet().phaseText();
+			crest.update("ON A TRIP: " + t.getBoss().getName().toUpperCase(), t.getKills(), unit(t, false), unit(t, true),
+				phase == null ? "Between runs" : phase, phase == null ? "Between runs" : view.getGauntlet().getMode().getLabel(), Theme.TEAL, Theme.GOLD);
+			return;
+		}
 		if (t != null)
 		{
-			crest.update("ON A TRIP: " + t.getBoss().getName().toUpperCase(), t.getKills(), chests(t) ? "chest" : "kill", chests(t) ? "chests" : "kills", view.outlook.text(),
+			crest.update("ON A TRIP: " + t.getBoss().getName().toUpperCase(), t.getKills(), unit(t, false), unit(t, true), view.outlook.text(),
 				view.outlook.shortText(), outlookColor(), Theme.GOLD);
 			return;
 		}
@@ -337,8 +349,9 @@ public class BossPanel extends PluginPanel
 		list.add(new SectionHeader("Requirements"));
 		list.add(requirements(p));
 
-		// Zalcano is fought with a pickaxe and skills, so there is no combat setup to rate.
-		if (b.getTier() != Boss.Tier.SKILLING)
+		// Zalcano is fought with a pickaxe and skills, and in the Gauntlet your own gear stays outside,
+		// so there is no combat setup to rate.
+		if (b.getTier() != Boss.Tier.SKILLING && b.bringsGear())
 		{
 			list.space(2);
 			list.add(new SectionHeader("Your best setup", view.setups.isEmpty() ? null : view.setups.get(0).getKind()));
@@ -395,6 +408,11 @@ public class BossPanel extends PluginPanel
 		if (b == Bosses.MOONS && moons != null)
 		{
 			moons(list, moons, false);
+		}
+		GauntletRun gauntlet = view.getGauntlet();
+		if (b == Bosses.GAUNTLET && gauntlet != null)
+		{
+			gauntlet(list, gauntlet, false);
 		}
 
 		if (!b.getBriefing().isEmpty())
@@ -652,6 +670,13 @@ public class BossPanel extends PluginPanel
 			return list;
 		}
 		list.add(new SectionHeader(t.getBoss().getName(), Format.clock(t.elapsed(view.now) / 1000.0)));
+		if (t.getBoss() == Bosses.GAUNTLET && view.getGauntlet() != null)
+		{
+			// The Gauntlet's own tab: the run's phase, the run log and the ghost. No supplies, damage or
+			// reminders: nothing here speaks while the Hunllef fight goes on.
+			gauntlet(list, view.getGauntlet(), true);
+			return list;
+		}
 		for (Reminders.Reminder r : view.reminders)
 		{
 			Card rc = new Card(new BorderLayout()).accent(r.isUrgent() ? Theme.EMBER : Theme.GOLD);
@@ -751,6 +776,40 @@ public class BossPanel extends PluginPanel
 			list.add(new SectionHeader("The set", (24 - r.getMissing().size()) + " of 24"));
 			list.add(BarrowsCard.set(r, TEXT));
 		}
+	}
+
+	/** What a trip counts: runs in the Gauntlet, chests at Barrows and the Moons of Peril, kills elsewhere. */
+	private static String unit(Trip t, boolean many)
+	{
+		if (t.getBoss() == Bosses.GAUNTLET)
+		{
+			return many ? "runs" : "run";
+		}
+		return chests(t) ? (many ? "chests" : "chest") : (many ? "kills" : "kill");
+	}
+
+	/** The Gauntlet: the run under way, the player's own runs with the ghost of their best splits, and the rewards. */
+	private void gauntlet(StackPanel list, GauntletRun r, boolean onTrip)
+	{
+		if (onTrip || r.getPhase() != GauntletWatch.Phase.NONE)
+		{
+			list.space(2);
+			list.add(new SectionHeader("This run", r.getPhase() == GauntletWatch.Phase.NONE ? null : r.getMode().getLabel()));
+			list.add(GauntletCard.run(r, TEXT));
+		}
+		list.space(2);
+		GauntletLog log = r.getLog();
+		list.add(new SectionHeader("Your runs", log.isEmpty() ? null : Format.plural(log.completed(), "completion", "completions")));
+		list.add(GauntletCard.runs(r, TEXT));
+		if (!log.isEmpty())
+		{
+			list.space(2);
+			list.add(new SectionHeader("Your ghost", "best prep and fight"));
+			list.add(GauntletCard.ghost(r, TEXT));
+		}
+		list.space(2);
+		list.add(new SectionHeader("Rare rewards", r.ownedCount() + " of " + Gauntlet.Unique.values().length));
+		list.add(GauntletCard.uniques(r, TEXT));
 	}
 
 	/** Whether a trip counts chests rather than kills: Barrows and the Moons of Peril. */

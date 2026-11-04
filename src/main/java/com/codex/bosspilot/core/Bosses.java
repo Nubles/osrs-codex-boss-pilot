@@ -332,10 +332,39 @@ public final class Bosses
 		.brief("Banking", "You can bank between moons without losing the run's progress.")
 		.build();
 
+	/**
+	 * The Gauntlet and the Corrupted Gauntlet, as runs: a preparation in the maze and a fight with the
+	 * Hunllef. Facts: The Gauntlet ("The Gauntlet can be found by entering the Gauntlet Portal, found
+	 * in the north-western part of Prifddinas"; "Players cannot bring any items into the Gauntlet";
+	 * "The player has 10 minutes to prepare to fight this boss"; "After completing the Gauntlet once,
+	 * players may try the Corrupted Gauntlet"; "The player only has 7 minutes and 30 seconds to
+	 * prepare"; failing "will not grant any chance of unique items"), Prifddinas ("In order to enter
+	 * the city, the quest Song of the Elves must be completed"), Reward Chest (The Gauntlet) for the
+	 * rates. The suggested combat level, 104, is the level of The Gauntlet/Strategies' advised stats
+	 * (80 Attack, 85 Strength, 80 Defence, 85 Ranged, 80 Magic, 85 Hitpoints, 77 Prayer). No line here
+	 * is about the fight.
+	 */
+	public static final Boss GAUNTLET = Boss.builder("gauntlet", "The Gauntlet", Boss.Tier.LATE)
+		.where("The Gauntlet, north-western Prifddinas", "Prifddinas, then the Gauntlet Portal in the north-west of the city")
+		.notes("A run is a preparation in the maze, gathering and crafting your own gear and potions, then a fight with the Hunllef.",
+			"Nothing you carry comes in: the game stores it while you are inside.",
+			"The Corrupted Gauntlet opens once you have completed the Gauntlet.",
+			"Prifddinas needs Song of the Elves.")
+		.npcs("Crystalline Hunllef", "Corrupted Hunllef")
+		.kc("Gauntlet", "Corrupted Gauntlet")
+		.quest("SONG_OF_THE_ELVES")
+		.suggested(104)
+		.gearless()
+		.kit(Supply.optional("Teleport crystal", 1, "Teleport crystal*", "Eternal teleport crystal"))
+		.brief("The clock", "You have 10 minutes to prepare in the Gauntlet and 7 minutes 30 seconds in the Corrupted Gauntlet. When it runs out, the game takes you to the Hunllef.")
+		.brief("Bringing nothing", "Everything on you is stored as you enter, so a run is built from what you gather inside.")
+		.brief("Rewards", "Only a completed run rolls the seeds and the pet. Dying or leaving early gives a small token reward.")
+		.build();
+
 	public static final List<Boss> ALL = Collections.unmodifiableList(Arrays.asList(
 		OBOR, BRYOPHYTA, SCURRIUS, GIANT_MOLE, BARROWS, SARACHNIS, KALPHITE_QUEEN, KING_BLACK_DRAGON,
 		DAGANNOTH_KINGS, KRAKEN, THERMONUCLEAR, GROTESQUE_GUARDIANS, ZULRAH, VORKATH,
-		GRAARDOR, ZILYANA, KREEARRA, KRIL, ZALCANO, MOONS));
+		GRAARDOR, ZILYANA, KREEARRA, KRIL, ZALCANO, MOONS, GAUNTLET));
 
 	private Bosses()
 	{
