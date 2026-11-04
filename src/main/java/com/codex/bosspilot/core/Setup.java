@@ -19,10 +19,19 @@ public final class Setup
 	private final String prayer;
 	private final String spell;
 	private final List<String> gear;
+	private final int ticks;
 
 	public Setup(String target, String kind, double dps, double killSeconds, int maxHit, String style, String prayer, String spell,
 		List<String> gear)
 	{
+		this(target, kind, dps, killSeconds, maxHit, style, prayer, spell, gear, 0);
+	}
+
+	/** @param ticks game ticks between attacks, or 0 when not known */
+	public Setup(String target, String kind, double dps, double killSeconds, int maxHit, String style, String prayer, String spell,
+		List<String> gear, int ticks)
+	{
+		this.ticks = ticks;
 		this.target = target;
 		this.kind = kind;
 		this.dps = dps;
@@ -89,6 +98,12 @@ public final class Setup
 	public String getSpell()
 	{
 		return spell;
+	}
+
+	/** Game ticks between attacks, or 0 when not known. */
+	public int getTicks()
+	{
+		return ticks;
 	}
 
 	/** The gear, weapon first, by name. */

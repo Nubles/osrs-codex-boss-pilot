@@ -1,0 +1,28 @@
+# A charge message is put on the item it is about, and only on an item Boss Pilot counts. The
+# game's "Your trident only has 100 charges left!" does not say which trident, so it goes to the
+# one worn, not the one in the pack; a blowpipe check with no toxic blowpipe carried (an ornament
+# one, say) is not counted; a trident check names its trident.
+# Facts: scenes/zulrah.scene. ItemID.TOXIC_TOTS_CHARGED (12899) is "Trident of the swamp" and
+# ItemID.TOTS_CHARGED (11907) "Trident of the seas" in RuneLite's gameval. The messages are the
+# game's as logged in the Weapon Charges plugin (github.com/geheur/weapon-charges, ChargedWeapon.java):
+# "<col=ef1020>Your trident only has 100 charges left!</col>", "Your Trident of the seas has 100 charges.".
+include /replays/scenes/zulrah.scene
+item TOXIC_TOTS_CHARGED "Trident of the swamp"
+item TOTS_CHARGED "Trident of the seas"
+items WORN clear
+items WORN TOXIC_TOTS_CHARGED 1
+items INV TOTS_CHARGED 1
+tick 2
+
+chat GAMEMESSAGE "<col=ef1020>Your trident only has 100 charges left!</col>"
+tick
+expect saved.chargesV1 ~ "swamp"
+expect saved.chargesV1 !~ "seas"
+
+chat GAMEMESSAGE "Your Trident of the seas has 2,345 charges."
+tick
+expect saved.chargesV1 ~ [2345]
+
+chat GAMEMESSAGE "Darts: <col=007f00>Adamant dart x 300</col>. Scales: <col=007f00>2,000 (12.2%)</col>."
+tick
+expect saved.chargesV1 !~ blowpipe

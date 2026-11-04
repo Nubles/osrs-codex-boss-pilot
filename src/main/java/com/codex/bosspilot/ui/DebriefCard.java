@@ -87,6 +87,7 @@ final class DebriefCard
 				return Theme.BLOOD;
 			case OUT_OF_FOOD:
 			case OUT_OF_PRAYER:
+			case OUT_OF_CHARGES:
 				return Theme.EMBER;
 			case BAG_FULL:
 				return Theme.GREEN;

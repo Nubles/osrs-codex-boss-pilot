@@ -9,6 +9,9 @@ import com.codex.bosspilot.core.Aim;
 import com.codex.bosspilot.core.BankSnapshot;
 import com.codex.bosspilot.core.Boss;
 import com.codex.bosspilot.core.Bosses;
+import com.codex.bosspilot.core.Charged;
+import com.codex.bosspilot.core.ChargeBook;
+import com.codex.bosspilot.core.ChargeCheck;
 import com.codex.bosspilot.core.Chat;
 import com.codex.bosspilot.core.Debrief;
 import com.codex.bosspilot.core.KitCheck;
@@ -180,6 +183,10 @@ public class CodexBossPilotPlugin extends Plugin
 	private Stock bankStock = Stock.EMPTY;
 	private Stock carried = Stock.EMPTY;
 	private Set<Integer> carriedIds = Collections.emptySet();
+	/** Names of what the player wears, for an Ava's device and the trident a message means. */
+	private Set<String> wornNames = Collections.emptySet();
+	/** The game's last word on the player's charged items, and the paces learnt from it. */
+	private ChargeBook charges = new ChargeBook();
 	private Boss nearby;
 	private String selected;
 	private boolean warned;
@@ -318,7 +325,8 @@ public class CodexBossPilotPlugin extends Plugin
 	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
-		if (CodexBossPilotConfig.GROUP.equals(event.getGroup()) && !Logbook.KEY.equals(event.getKey()) && !BANK_KEY.equals(event.getKey()))
+		if (CodexBossPilotConfig.GROUP.equals(event.getGroup()) && !Logbook.KEY.equals(event.getKey()) && !BANK_KEY.equals(event.getKey())
+			&& !ChargeBook.KEY.equals(event.getKey()))
 		{
 			if ("boost".equals(event.getKey()))
 			{
@@ -352,6 +360,10 @@ public class CodexBossPilotPlugin extends Plugin
 		}
 		String message = Text.removeTags(event.getMessage());
 		long now = System.currentTimeMillis();
+		if (readCharges(message, now))
+		{
+			return;
+		}
 		Chat.Kc kc = Chat.kc(message);
 		if (kc != null)
 		{
@@ -360,6 +372,7 @@ public class CodexBossPilotPlugin extends Plugin
 			{
 				logbook.noteKc(boss, kc.count);
 				tracker.kill(boss, now);
+				chargesKill(boss);
 				saveLogbook();
 				saveFinished();
 			}
@@ -419,6 +432,139 @@ public class CodexBossPilotPlugin extends Plugin
 	}
 
 	// ---- Reading ----
+
+	/**
+	 * Takes what a game message says about a charged item the player has on them. A message
+	 * that only says "Your trident" means the trident worn, else the one carried.
+	 *
+	 * @return whether the message was about charges
+	 */
+	private boolean readCharges(String message, long now)
+	{
+		Charged.Reading r = Charged.read(message);
+		if (r == null)
+		{
+			return false;
+		}
+		Charged item = r.getItem();
+		if (r.isAnyTrident())
+		{
+			item = null;
+			for (Charged t : Charged.tridents())
+			{
+				if (item == null && has(t, wornNames))
+				{
+					item = t;
+				}
+			}
+			for (Charged t : Charged.tridents())
+			{
+				if (item == null && has(t, carried.asMap().keySet()))
+				{
+					item = t;
+				}
+			}
+			if (item == null)
+			{
+				return true;
+			}
+			r = r.as(item);
+		}
+		if (!has(item, carried.asMap().keySet()))
+		{
+			// Another item gives the same message (a tanzanite helm's scales, a blazing blowpipe): not one Boss Pilot counts.
+			return true;
+		}
+		charges.read(item, r.getValues(), now);
+		Trip on = tracker.current();
+		if (on != null)
+		{
+			int[] v = r.getValues();
+			String out = null;
+			for (int i = 0; i < v.length && out == null; i++)
+			{
+				if (v[i] == 0)
+				{
+					out = item.getName() + " " + item.getPools().get(i).getName();
+				}
+			}
+			if (out != null)
+			{
+				tracker.ranOut(out);
+			}
+			else if (on.getRanOut() != null && on.getRanOut().startsWith(item.getName() + " "))
+			{
+				tracker.ranOut(null);
+			}
+		}
+		saveCharges();
+		clientThread.invokeLater(this::evaluate);
+		return true;
+	}
+
+	private static boolean has(Charged item, Set<String> names)
+	{
+		for (String n : names)
+		{
+			if (Charged.byItem(n) == item)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** A kill: what it used of each charged item the player has on them, at the best pace known. */
+	private void chargesKill(Boss boss)
+	{
+		List<Charged> items = Charged.among(carried.asMap().keySet());
+		if (items.isEmpty())
+		{
+			return;
+		}
+		Trip t = tracker.current();
+		List<Setup> list = setups.getOrDefault(boss.getKey(), Collections.emptyList());
+		for (Charged c : items)
+		{
+			double[] per = ChargeCheck.perKill(c, charges, boss.getKey(), list, hitsPerKill(t), combatSeconds(t), new ChargeCheck.PaceFrom[1]);
+			charges.kill(boss.getKey(), c, per);
+		}
+		saveCharges();
+	}
+
+	private static double hitsPerKill(Trip t)
+	{
+		return t == null || t.getKills() <= 0 ? -1 : (double) t.getHits() / t.getKills();
+	}
+
+	private static double combatSeconds(Trip t)
+	{
+		return t == null || t.getKillSeconds().isEmpty() ? -1 : t.averageKill();
+	}
+
+	/** How long each charged item lasts at a boss: those its setups use and those worn now. */
+	private List<ChargeCheck.Line> chargeLines(Boss boss, List<Setup> list, Trip t, double target)
+	{
+		Set<Charged> items = new LinkedHashSet<>();
+		if (t == null)
+		{
+			items.addAll(ChargeCheck.inSetups(list));
+			items.addAll(Charged.among(wornNames));
+		}
+		else
+		{
+			items.addAll(Charged.among(carried.asMap().keySet()));
+		}
+		List<Charged> ordered = new ArrayList<>();
+		for (Charged c : Charged.ALL)
+		{
+			if (items.contains(c))
+			{
+				ordered.add(c);
+			}
+		}
+		return ChargeCheck.of(ordered, charges, boss.getKey(), list, t == null ? -1 : hitsPerKill(t), t == null ? -1 : combatSeconds(t), target);
+	}
 
 	/** The must-have kit lines the player carries now, by label. */
 	private Set<String> mustCarried(Boss boss)
@@ -555,6 +701,7 @@ public class CodexBossPilotPlugin extends Plugin
 	{
 		Map<String, Long> byName = new HashMap<>();
 		Set<Integer> ids = new HashSet<>();
+		Set<String> worn = new HashSet<>();
 		for (int containerId : new int[]{InventoryID.INV, InventoryID.WORN})
 		{
 			ItemContainer c = client.getItemContainer(containerId);
@@ -576,10 +723,15 @@ public class CodexBossPilotPlugin extends Plugin
 				}
 				byName.merge(comp.getName(), (long) item.getQuantity(), Long::sum);
 				ids.add(item.getId());
+				if (containerId == InventoryID.WORN)
+				{
+					worn.add(comp.getName());
+				}
 			}
 		}
 		carried = Stock.of(byName);
 		carriedIds = ids;
+		wornNames = worn;
 	}
 
 	private void readBank(ItemContainer bank)
@@ -629,6 +781,7 @@ public class CodexBossPilotPlugin extends Plugin
 	private void loadProfile()
 	{
 		logbook = Logbook.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, Logbook.KEY));
+		charges = ChargeBook.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, ChargeBook.KEY));
 		BankSnapshot own = BankSnapshot.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, BANK_KEY));
 		BankSnapshot steward = own != null ? null
 			: BankSnapshot.parse(gson, configManager.getRSProfileConfiguration(STEWARD_GROUP, STEWARD_KEY));
@@ -762,6 +915,13 @@ public class CodexBossPilotPlugin extends Plugin
 
 		Trip trip = tracker.current();
 		Outlook outlook = trip == null ? Outlook.UNKNOWN : Outlook.of(trip, logbook.rates(trip.getBoss()));
+		List<ChargeCheck.Line> tripCharges = Collections.emptyList();
+		if (trip != null && loggedIn && config.charges())
+		{
+			tripCharges = chargeLines(trip.getBoss(), setups.getOrDefault(trip.getBoss().getKey(), Collections.emptyList()), trip,
+				outlook.getLevel() == Outlook.Level.UNKNOWN ? -1 : outlook.getKills());
+			outlook = outlook.withCharges(ChargeCheck.first(tripCharges));
+		}
 		if (trip != null && outlook.getLevel() == Outlook.Level.LAST)
 		{
 			if (!warned && config.notifyLow())
@@ -778,8 +938,11 @@ public class CodexBossPilotPlugin extends Plugin
 		List<Reminders.Reminder> reminders = loggedIn ? reminders(trip) : Collections.emptyList();
 		String tripNote = trip == null ? "" : note(trip.getBoss());
 		tripPlaque.show(loggedIn && trip != null && config.tripPlaque() ? Plaques.trip(trip, outlook, logbook, reminders, tripNote, now) : null);
+		List<ChargeCheck.Line> nextCharges = !loggedIn || next == null || !config.charges() ? Collections.emptyList()
+			: chargeLines(next.getBoss(), setups.getOrDefault(next.getBoss().getKey(), Collections.emptyList()), null,
+				ChargeCheck.kitKills(next.getBoss(), logbook.rates(next.getBoss())));
 		kitPlaque.show(loggedIn && trip == null && next != null && config.bankPlaque() && bankOpen()
-			? Plaques.kit(next.getBoss().getName(), next.getKit()) : null);
+			? Plaques.kit(next.getBoss().getName(), next.getKit(), nextCharges) : null);
 
 		BossPanel p = panel;
 		if (p == null)
@@ -788,8 +951,12 @@ public class CodexBossPilotPlugin extends Plugin
 		}
 		List<Setup> shownSetups = shown == null ? Collections.emptyList()
 			: setups.getOrDefault(shown.getBoss().getKey(), Collections.emptyList());
+		List<ChargeCheck.Line> shownCharges = shown == next ? nextCharges : !loggedIn || shown == null || !config.charges()
+			? Collections.emptyList()
+			: chargeLines(shown.getBoss(), shownSetups, null, ChargeCheck.kitKills(shown.getBoss(), logbook.rates(shown.getBoss())));
 		View view = new View(loggedIn, picks, next, shown, shownSetups, setupsPending && shownSetups.isEmpty(), trip, outlook, logbook,
-			review, in.aim, bankSeenAt, now, reminders, shown == null ? "" : note(shown.getBoss()));
+			review, in.aim, bankSeenAt, now, reminders, shown == null ? "" : note(shown.getBoss()))
+			.withCharges(shownCharges, tripCharges);
 		SwingUtilities.invokeLater(() -> p.update(view));
 	}
 
@@ -883,7 +1050,7 @@ public class CodexBossPilotPlugin extends Plugin
 						}
 						double secs = r.secondsToKill(t);
 						list.add(new Setup(b.getTargets().size() > 1 ? Setup.shortName(b.getName(), t.getName()) : null, r.getKind().toString(), r.getDps(),
-							Double.isInfinite(secs) ? -1 : secs, r.getMaxHit(), r.getStyle(), r.getPrayer(), r.getSpell(), gear));
+							Double.isInfinite(secs) ? -1 : secs, r.getMaxHit(), r.getStyle(), r.getPrayer(), r.getSpell(), gear, r.getTicks()));
 					}
 					out.put(b.getKey(), list);
 				}
@@ -925,6 +1092,14 @@ public class CodexBossPilotPlugin extends Plugin
 		if (configManager.getRSProfileKey() != null)
 		{
 			configManager.setRSProfileConfiguration(CodexBossPilotConfig.GROUP, Logbook.KEY, logbook.toJson(gson));
+		}
+	}
+
+	private void saveCharges()
+	{
+		if (configManager.getRSProfileKey() != null)
+		{
+			configManager.setRSProfileConfiguration(CodexBossPilotConfig.GROUP, ChargeBook.KEY, charges.toJson(gson));
 		}
 	}
 

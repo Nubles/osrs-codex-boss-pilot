@@ -1,0 +1,29 @@
+# A schematic Zulrah's Shrine for replays. Not the real map: Boss Pilot finds a boss by its NPC
+# name near the player, and supplies and gear by item name.
+#
+# Facts (oldschool.runescape.wiki): Zulrah is combat level 725 (w/Zulrah); a shark heals 20
+# (w/Shark); a prayer potion has 4 doses (w/Prayer_potion). The worn blowpipe's id is
+# ItemID.TOXIC_BLOWPIPE_LOADED (12926, "Toxic blowpipe") and Ava's assembler ItemID.AVAS_ASSEMBLER
+# (22109), and Zulrah NpcID.SNAKEBOSS_BOSS_RANGED (2042), in RuneLite's gameval. Item and NPC names are the game's.
+
+scene 2240 3040
+skill ATTACK 80
+skill STRENGTH 80
+skill DEFENCE 85
+skill RANGED 90
+skill MAGIC 85
+skill HITPOINTS 90
+skill PRAYER 77
+item SHARK "Shark"
+item _4DOSEPRAYERRESTORE "Prayer potion(4)"
+item TOXIC_BLOWPIPE_LOADED "Toxic blowpipe"
+item AVAS_ASSEMBLER "Ava's assembler"
+items WORN TOXIC_BLOWPIPE_LOADED 1
+items WORN AVAS_ASSEMBLER 1
+items INV SHARK 12
+items INV _4DOSEPRAYERRESTORE 4
+at 2268 3070
+login
+
+watch over tripPlaque.shown.over
+watch title tripPlaque.shown.title

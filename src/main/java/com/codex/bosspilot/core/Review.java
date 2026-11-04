@@ -65,6 +65,11 @@ public final class Review
 			return (t.deaths == 1 ? "You died once." : "You died " + t.deaths + " times.")
 				+ " Read the briefing on the Prepare tab, and bring more food or the best setup there.";
 		}
+		if (Debrief.Ending.OUT_OF_CHARGES.name().equals(t.ended))
+		{
+			return "Your " + (t.outOf == null ? "charged gear" : t.outOf) + " ran out before your supplies did. Top it up at the bank:"
+				+ " the kit step on the Prepare tab says when it will not last the trip.";
+		}
 		double perKill = (double) t.foodUsed / t.kills;
 		double dosesPerKill = (double) t.dosesUsed / t.kills;
 		if (left >= 0 && left < 1 && Debrief.Ending.OUT_OF_PRAYER.name().equals(t.ended) && dosesPerKill > 0)

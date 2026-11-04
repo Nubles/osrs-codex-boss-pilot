@@ -1,5 +1,6 @@
 package com.codex.bosspilot.overlay;
 
+import com.codex.bosspilot.core.ChargeCheck;
 import com.codex.bosspilot.core.Format;
 import com.codex.bosspilot.core.KitCheck;
 import com.codex.bosspilot.core.Logbook;
@@ -10,6 +11,7 @@ import com.codex.bosspilot.core.Trip;
 import com.codex.bosspilot.ui.Theme;
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /** What the two plaques say: the trip at a boss, and the kit to take out at the bank. */
@@ -62,15 +64,41 @@ public final class Plaques
 		return text.length() <= max ? text : text.substring(0, max - 3).trim() + "...";
 	}
 
-	/** The kit plaque, or null when everything is packed. */
+	/** The kit plaque. */
 	public static Plaque.Content kit(String bossName, KitCheck kit)
+	{
+		return kit(bossName, kit, Collections.emptyList());
+	}
+
+	/**
+	 * The kit plaque: what is not in the bank, the charged gear to top up or check, then what to
+	 * take out.
+	 */
+	public static Plaque.Content kit(String bossName, KitCheck kit, List<ChargeCheck.Line> charges)
 	{
 		List<KitCheck.Line> out = kit.toWithdraw();
 		List<KitCheck.Line> missing = kit.missingMust();
-		if (out.isEmpty() && missing.isEmpty())
+		List<ChargeCheck.Line> topUp = new ArrayList<>();
+		List<ChargeCheck.Line> unchecked = new ArrayList<>();
+		for (ChargeCheck.Line c : charges)
+		{
+			if (c.getStatus().needsRecharge())
+			{
+				topUp.add(c);
+			}
+			else if (c.getStatus() == ChargeCheck.Status.UNCHECKED)
+			{
+				unchecked.add(c);
+			}
+		}
+		if (out.isEmpty() && missing.isEmpty() && topUp.isEmpty())
 		{
 			List<Plaque.Line> lines = new ArrayList<>();
 			lines.add(new Plaque.Line("Your kit is packed. Good luck.", Theme.GREEN));
+			for (ChargeCheck.Line c : unchecked)
+			{
+				lines.add(new Plaque.Line("Check " + c.getItem().getName() + " to count its charges", Theme.TEXT_MUTED));
+			}
 			return new Plaque.Content("KIT FOR THE NEXT BOSS", bossName, Theme.GREEN, lines);
 		}
 		List<Plaque.Line> lines = new ArrayList<>();
@@ -78,6 +106,12 @@ public final class Plaques
 		{
 			lines.add(new Plaque.Line("Not in your bank: " + l.getSupply().getLabel(), Theme.EMBER));
 		}
+		for (ChargeCheck.Line c : topUp)
+		{
+			lines.add(new Plaque.Line("Top up " + c.getItem().getName(), c.getStatus() == ChargeCheck.Status.EMPTY ? Theme.BLOOD : Theme.EMBER,
+				topUpRight(c)));
+		}
+		int shown = 0;
 		for (KitCheck.Line l : out)
 		{
 			if (lines.size() >= KIT_LINES)
@@ -90,14 +124,35 @@ public final class Plaques
 			}
 			lines.add(new Plaque.Line(take(l), l.getSupply().getNeed() == Supply.Need.OPTIONAL ? Theme.TEXT_MUTED : Theme.TEXT,
 				amount(l)));
+			shown++;
 		}
-		int more = out.size() + missing.size() - lines.size();
+		for (ChargeCheck.Line c : unchecked)
+		{
+			if (lines.size() >= KIT_LINES + 1)
+			{
+				break;
+			}
+			lines.add(new Plaque.Line("Check " + c.getItem().getName(), Theme.TEXT_MUTED, "charges unknown"));
+		}
+		int more = out.size() - shown;
 		if (more > 0)
 		{
 			lines.add(new Plaque.Line("and " + more + " more in the panel", Theme.TEXT_FAINT));
 		}
 		Color tint = missing.isEmpty() ? Theme.GOLD : Theme.EMBER;
 		return new Plaque.Content("TAKE OUT FOR THE NEXT BOSS", bossName, tint, lines);
+	}
+
+	/** "darts: ~2 kills, food 6", "empty". */
+	static String topUpRight(ChargeCheck.Line c)
+	{
+		String pool = c.limitName();
+		String kills = c.killsText();
+		if (c.getStatus() == ChargeCheck.Status.SHORT && c.getTarget() > 0)
+		{
+			return (pool == null ? "" : pool + " ") + kills + " of " + (long) Math.floor(c.getTarget());
+		}
+		return (pool == null ? "" : pool + " ") + kills;
 	}
 
 	static String take(KitCheck.Line l)

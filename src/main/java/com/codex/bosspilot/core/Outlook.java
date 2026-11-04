@@ -26,13 +26,48 @@ public final class Outlook
 	private final double kills;
 	private final boolean fromHistory;
 	private final String limit;
+	/** Whether a charged item, not food or prayer, runs out first. */
+	private final boolean charges;
 
 	private Outlook(Level level, double kills, boolean fromHistory, String limit)
+	{
+		this(level, kills, fromHistory, limit, false);
+	}
+
+	private Outlook(Level level, double kills, boolean fromHistory, String limit, boolean charges)
 	{
 		this.level = level;
 		this.kills = kills;
 		this.fromHistory = fromHistory;
 		this.limit = limit;
+		this.charges = charges;
+	}
+
+	/**
+	 * The same outlook, unless a charged item the player carries runs out sooner than the food
+	 * and prayer: then it is what runs out first, such as "Toxic blowpipe darts".
+	 *
+	 * @param first the charged item that runs out first, or null
+	 */
+	public Outlook withCharges(ChargeCheck.Line first)
+	{
+		if (first == null || first.getKills() < 0)
+		{
+			return this;
+		}
+		double k = first.getKills();
+		if (level != Level.UNKNOWN && kills <= k)
+		{
+			return this;
+		}
+		Level l = k >= PLENTY ? Level.PLENTY : k >= 1 ? Level.FEW : Level.LAST;
+		return new Outlook(l, k, false, first.what(), true);
+	}
+
+	/** Whether a charged item runs out first. */
+	public boolean isCharges()
+	{
+		return charges;
 	}
 
 	public static final Outlook UNKNOWN = new Outlook(Level.UNKNOWN, -1, false, null);
@@ -96,7 +131,7 @@ public final class Outlook
 		return fromHistory;
 	}
 
-	/** What runs out first: "food" or "prayer", or null. */
+	/** What runs out first: "food", "prayer" or a charged item's "Toxic blowpipe darts", or null. */
 	public String getLimit()
 	{
 		return limit;
@@ -110,7 +145,7 @@ public final class Outlook
 			case PLENTY:
 			case FEW:
 				long n = Math.max(1, (long) Math.floor(kills));
-				return "Supplies: " + n + " more " + (n == 1 ? "kill" : "kills");
+				return (charges ? limit + ": " : "Supplies: ") + n + " more " + (n == 1 ? "kill" : "kills");
 			case LAST:
 				return "Bank after this kill";
 			default:
@@ -126,9 +161,13 @@ public final class Outlook
 			case PLENTY:
 			case FEW:
 				long n = Math.max(1, (long) Math.floor(kills));
+				if (charges)
+				{
+					return limit + " for about " + n + " more " + (n == 1 ? "kill" : "kills");
+				}
 				return "Supplies for about " + n + " more " + (n == 1 ? "kill" : "kills") + (fromHistory ? " (from past trips)" : "");
 			case LAST:
-				return "Bank after this kill: your " + limit + " is nearly gone";
+				return "Bank after this kill: your " + limit + (charges ? " are" : " is") + " nearly gone";
 			default:
 				return "Supplies: learning your pace";
 		}
