@@ -160,8 +160,8 @@ public final class Bosses
 		.build();
 
 	public static final Boss THERMONUCLEAR = Boss.builder("thermy", "Thermonuclear smoke devil", Boss.Tier.SLAYER)
-		.where("Smoke Devil Dungeon, west of Castle Wars", "Castle Wars, then the dungeon to the north-west")
-		.attacks("Ranged")
+		.where("Smoke Devil Dungeon, south of Castle Wars", "Fairy ring BKP, or Castle Wars and then south-west")
+		.attacks("Magical ranged that goes through prayer")
 		.notes("A facemask or slayer helmet is a must: the smoke drains your stats without one.")
 		.targets("Thermonuclear smoke devil")
 		.skill("Slayer", 93)
@@ -173,7 +173,7 @@ public final class Bosses
 			"Tzkal slayer helmet*", "Araxyte slayer helmet*"),
 			Supply.food(200), Supply.doses("Prayer", 12, PRAYER))
 		.brief("Smoke", "The smoke in the room drains your stats. A facemask or slayer helmet stops it.")
-		.brief("Ranged hits", "Its attacks are ranged. Protect from Missiles stops them.")
+		.brief("Through prayer", "Its magical ranged attack hits through protection prayers, up to 8 every two ticks. Eat through it.")
 		.brief("Multi-combat", "Smoke devils in the dungeon are aggressive and the room is multi-combat.")
 		.build();
 
@@ -181,7 +181,7 @@ public final class Bosses
 		.where("Roof of the Slayer Tower, Morytania", "Slayer ring or Canifis, then the tower's roof")
 		.attacks("Melee, ranged and magic")
 		.notes("Two gargoyles, Dusk and Dawn, fought together.",
-			"The roof needs a gargoyle task and a brittle key.")
+			"The roof needs a gargoyle task, and a brittle key once to open it for good.")
 		.npcs("Dusk", "Dawn")
 		.kc("Grotesque Guardians")
 		.targets("Grotesque Guardians")
@@ -189,8 +189,8 @@ public final class Bosses
 		.task("gargoyle")
 		.quest("PRIEST_IN_PERIL")
 		.suggested(100)
-		.kit(Supply.must("Brittle key", 1, "Brittle key"), Supply.food(260), Supply.doses("Prayer", 16, PRAYER))
-		.brief("Two gargoyles", "Dawn flies and is hit only with ranged. Dusk is hit with melee, and crush is best.")
+		.kit(Supply.firstVisit("Brittle key", 1, "Brittle key"), Supply.food(260), Supply.doses("Prayer", 16, PRAYER))
+		.brief("Two gargoyles", "Dawn flies, so she is hit with ranged, magic or a halberd; earth spells hurt her most. Dusk is hit only with melee, and crush is best.")
 		.brief("Falling rocks", "Rocks fall on shaded tiles. Step off the shadows.")
 		.brief("Lightning", "Electric orbs cross the roof. Keep clear of them.")
 		.brief("Prayer", "Dawn uses ranged and Dusk melee. Protect against the one fighting you.")
@@ -233,7 +233,7 @@ public final class Bosses
 	public static final Boss GRAARDOR = Boss.builder("graardor", "General Graardor", Boss.Tier.GOD_WARS)
 		.where("Bandos stronghold, God Wars Dungeon", "Trollheim, then the dungeon north of it")
 		.attacks("Melee and ranged")
-		.notes("The door needs 70 Strength and 40 kills of Bandos followers.",
+		.notes("The door needs 70 Strength and 40 kills of Bandos followers (35 to 15 with Combat Achievement tiers).",
 			"His three bodyguards fight with him.")
 		.targets("General Graardor")
 		.skill("Strength", 70)
@@ -246,7 +246,7 @@ public final class Bosses
 	public static final Boss ZILYANA = Boss.builder("zilyana", "Commander Zilyana", Boss.Tier.GOD_WARS)
 		.where("Saradomin encampment, God Wars Dungeon", "Trollheim, then the dungeon north of it")
 		.attacks("Melee and magic")
-		.notes("The way in needs 70 Agility and 40 kills of Saradomin followers.",
+		.notes("The way in needs 70 Agility and 40 kills of Saradomin followers (35 to 15 with Combat Achievement tiers).",
 			"Ropes are tied the first time you climb down to her.")
 		.targets("Commander Zilyana")
 		.skill("Agility", 70)
@@ -260,7 +260,7 @@ public final class Bosses
 	public static final Boss KREEARRA = Boss.builder("kreearra", "Kree'arra", Boss.Tier.GOD_WARS)
 		.where("Armadyl eyrie, God Wars Dungeon", "Trollheim, then the dungeon north of it")
 		.attacks("Ranged, magic and melee")
-		.notes("The way in needs 70 Ranged, a crossbow and a mith grapple, and 40 kills of Armadyl followers.",
+		.notes("The way in needs 70 Ranged, a crossbow and a mith grapple, and 40 kills of Armadyl followers (35 to 15 with Combat Achievement tiers).",
 			"Only ranged and magic reach it.")
 		.targets("Kree'arra")
 		.skill("Ranged", 70)
@@ -274,7 +274,7 @@ public final class Bosses
 	public static final Boss KRIL = Boss.builder("kril", "K'ril Tsutsaroth", Boss.Tier.GOD_WARS)
 		.where("Zamorak fortress, God Wars Dungeon", "Trollheim, then the dungeon north of it")
 		.attacks("Melee and magic")
-		.notes("The way in needs 70 Hitpoints and 40 kills of Zamorak followers.",
+		.notes("The way in needs 70 Hitpoints and 40 kills of Zamorak followers (35 to 15 with Combat Achievement tiers).",
 			"A demon, so demonbane weapons and spells help. His attacks can poison.")
 		.targets("K'ril Tsutsaroth")
 		.skill("Hitpoints", 70)
