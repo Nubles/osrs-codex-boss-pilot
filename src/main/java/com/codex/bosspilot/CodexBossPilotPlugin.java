@@ -38,6 +38,10 @@ import com.codex.bosspilot.core.Supply;
 import com.codex.bosspilot.core.Trip;
 import com.codex.bosspilot.core.TripTracker;
 import com.codex.bosspilot.core.WayIn;
+import com.codex.bosspilot.core.MaggotKing;
+import com.codex.bosspilot.core.MaggotLog;
+import com.codex.bosspilot.core.MaggotRun;
+import com.codex.bosspilot.core.MaggotWatch;
 import com.codex.bosspilot.core.Zalcano;
 import com.codex.bosspilot.core.ZalcanoLog;
 import com.codex.bosspilot.core.ZalcanoLoot;
@@ -92,6 +96,8 @@ import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemSpawned;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.ItemContainerChanged;
+import net.runelite.api.events.MenuOptionClicked;
+import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.DBTableID;
 import net.runelite.api.gameval.InterfaceID;
@@ -259,6 +265,17 @@ public class CodexBossPilotPlugin extends Plugin
 	/** After a chest, the run's varbits are the old run's until the game clears them. */
 	private boolean runCleared;
 
+	// ---- The Maggot King ----
+	/** The player's own Maggot King kills. */
+	private MaggotLog maggotLog = new MaggotLog();
+	/** Puts each Maggot King kill together from its kill count, the corpse option and the loot. */
+	private final MaggotWatch maggotWatch = new MaggotWatch();
+	/** When the last Maggot King kill of this trip began, to time the next; 0 when none. */
+	private long lastMaggotAt;
+	private Trip lastMaggotTrip;
+	/** The tick a maggot egg was last popped, so the pet's message just after it is the egg's. */
+	private int lastPopTick = -1000;
+
 	// ---- Zalcano ----
 	/** The player's own Zalcano kills. */
 	private ZalcanoLog zalcanoLog = new ZalcanoLog();
@@ -385,6 +402,7 @@ public class CodexBossPilotPlugin extends Plugin
 		nearby = findNearby();
 		readBarrows();
 		readZalcano();
+		readMaggot();
 		readMoons();
 		gauntletTicks++;
 		readGauntlet();
@@ -418,6 +436,7 @@ public class CodexBossPilotPlugin extends Plugin
 		}
 		if (state == GameState.LOGIN_SCREEN || state == GameState.HOPPING)
 		{
+			endMaggot();
 			endGauntlet();
 			tracker.end(state == GameState.HOPPING ? Debrief.Cause.HOPPED : Debrief.Cause.LOGGED_OUT);
 			saveFinished();
@@ -457,7 +476,7 @@ public class CodexBossPilotPlugin extends Plugin
 		if (CodexBossPilotConfig.GROUP.equals(event.getGroup()) && !Logbook.KEY.equals(event.getKey()) && !BANK_KEY.equals(event.getKey())
 			&& !ChargeBook.KEY.equals(event.getKey()) && !ChestLog.KEY.equals(event.getKey()) && !TUNNEL_KEY.equals(event.getKey())
 			&& !ZalcanoLog.KEY.equals(event.getKey()) && !LunarLog.KEY.equals(event.getKey())
-			&& !GauntletLog.KEY.equals(event.getKey()))
+			&& !GauntletLog.KEY.equals(event.getKey()) && !MaggotLog.KEY.equals(event.getKey()))
 		{
 			if ("boost".equals(event.getKey()))
 			{
@@ -578,6 +597,11 @@ public class CodexBossPilotPlugin extends Plugin
 				return;
 			}
 			Boss boss = Bosses.byKc(kc.name);
+			if (boss == Bosses.MAGGOT_KING)
+			{
+				maggotKill(kc.count, now);
+				return;
+			}
 			if (boss == Bosses.MOONS)
 			{
 				// The chest count: the chest is logged, and counted on the trip, from its reward.
@@ -610,6 +634,18 @@ public class CodexBossPilotPlugin extends Plugin
 			petMessage();
 			return;
 		}
+		if (MaggotKing.EGGS_NOTHING.equals(message))
+		{
+			maggotWatch.eggsNothing(ticks, now);
+			return;
+		}
+		Trip trip = tracker.current();
+		if (MaggotKing.petMessage(message) && (trip != null && trip.getBoss() == Bosses.MAGGOT_KING || maggotWatch.pending()
+			|| ticks - lastPopTick <= MaggotWatch.POP_TICKS))
+		{
+			maggotWatch.pet(ticks);
+			return;
+		}
 		double seconds = Chat.duration(message);
 		Trip on = tracker.current();
 		// A moon's own fight time is not a run's: the run is timed from chest to chest.
@@ -630,7 +666,8 @@ public class CodexBossPilotPlugin extends Plugin
 		NPC npc = event.getNpc();
 		Boss boss = npc == null ? null : Bosses.byNpc(npc.getName());
 		// Zalcano's loot is read from the ground by the kill log, which adds it to the trip.
-		if (boss != null && boss != Bosses.ZALCANO)
+		// The Maggot King's is read by its kill log too.
+		if (boss != null && boss != Bosses.ZALCANO && boss != Bosses.MAGGOT_KING)
 		{
 			tracker.loot(boss, value(event.getItems()), System.currentTimeMillis());
 		}
@@ -639,6 +676,15 @@ public class CodexBossPilotPlugin extends Plugin
 	@Subscribe
 	public void onLootReceived(LootReceived event)
 	{
+		if (Bosses.MAGGOT_KING.getName().equalsIgnoreCase(event.getName()))
+		{
+			// The corpse's loot, as RuneLite's loot tracker hands it on; its kill log adds it to the trip.
+			if (!event.getItems().isEmpty())
+			{
+				maggotWatch.loot(ticks, System.currentTimeMillis(), drops(event.getItems()));
+			}
+			return;
+		}
 		// Chest loot, such as the Barrows chest, comes as an event rather than an NPC drop.
 		Trip t = tracker.current();
 		// The Barrows chest is read from its reward by the chest log, which adds it to the trip.
@@ -667,6 +713,12 @@ public class CodexBossPilotPlugin extends Plugin
 	{
 		if (event.getActor() == client.getLocalPlayer())
 		{
+			Trip on = tracker.current();
+			if (on != null && on.getBoss() == Bosses.MAGGOT_KING)
+			{
+				maggotLog.died();
+				saveMaggot();
+			}
 			tracker.death();
 			gauntletWatch.died(gauntletTicks);
 		}
@@ -916,6 +968,145 @@ public class CodexBossPilotPlugin extends Plugin
 			}
 		}
 		return null;
+	}
+
+	// ---- The Maggot King ----
+
+	@Subscribe
+	public void onMenuOptionClicked(MenuOptionClicked event)
+	{
+		// Only which option the player picked, to know how a corpse was looted or an egg popped.
+		MaggotKing.Choice c = MaggotKing.Choice.byOption(event.getMenuOption());
+		if (c != null && event.getMenuTarget() != null && Text.removeTags(event.getMenuTarget()).contains(Bosses.MAGGOT_KING.getName()))
+		{
+			maggotWatch.choice(ticks, System.currentTimeMillis(), c);
+		}
+		else if (MaggotKing.POP.equals(event.getMenuOption()) && MaggotKing.isEgg(event.getItemId()))
+		{
+			lastPopTick = ticks;
+			maggotWatch.pop(ticks);
+		}
+	}
+
+	@Subscribe
+	public void onVarbitChanged(VarbitChanged event)
+	{
+		if (event.getVarpId() != MaggotKing.KILLS_VARP)
+		{
+			return;
+		}
+		int count = event.getValue();
+		Trip on = tracker.current();
+		if (maggotWatch.getLastKc() >= 0 && count == maggotWatch.getLastKc() + 1 && on != null && on.getBoss() == Bosses.MAGGOT_KING)
+		{
+			maggotKill(count, System.currentTimeMillis());
+		}
+		else
+		{
+			// The count as it stands, such as on logging in: not a kill. Only a rise of one at the boss is.
+			maggotWatch.baseline(count);
+		}
+	}
+
+	/** A Maggot King kill count, from the chat line or the game's own count: a kill once. */
+	private void maggotKill(int count, long now)
+	{
+		if (!maggotWatch.kc(ticks, now, count))
+		{
+			return;
+		}
+		logbook.noteKc(Bosses.MAGGOT_KING, count);
+		tracker.kill(Bosses.MAGGOT_KING, now);
+		chargesKill(Bosses.MAGGOT_KING);
+		saveLogbook();
+		saveFinished();
+	}
+
+	/** Each tick: logs a kill once its loot is in, and a kill left unlooted when the trip ends. */
+	private void readMaggot()
+	{
+		Trip t = tracker.current();
+		boolean on = t != null && t.getBoss() == Bosses.MAGGOT_KING;
+		List<MaggotWatch.Event> events;
+		if (!on && lastMaggotTrip != null)
+		{
+			events = maggotWatch.end(ticks);
+		}
+		else
+		{
+			events = maggotWatch.poll(ticks);
+		}
+		apply(events);
+		if (t != lastMaggotTrip)
+		{
+			// A new trip times its kills afresh: the walk in is not a kill.
+			lastMaggotAt = 0;
+			lastMaggotTrip = on ? t : null;
+		}
+	}
+
+	private void endMaggot()
+	{
+		apply(maggotWatch.end(ticks));
+		lastMaggotAt = 0;
+		lastMaggotTrip = null;
+	}
+
+	private void apply(List<MaggotWatch.Event> events)
+	{
+		if (events.isEmpty())
+		{
+			return;
+		}
+		for (MaggotWatch.Event e : events)
+		{
+			if (e.kill != null)
+			{
+				MaggotLog.Kill k = e.kill;
+				k.seconds = lastMaggotAt > 0 && k.at > lastMaggotAt ? Math.max(1, (k.at - lastMaggotAt) / 1000) : -1;
+				maggotLog.add(k);
+				if (lastMaggotTrip != null)
+				{
+					lastMaggotAt = k.at;
+					if (k.value > 0)
+					{
+						tracker.loot(Bosses.MAGGOT_KING, k.value, System.currentTimeMillis());
+					}
+				}
+			}
+			if (e.late != null)
+			{
+				maggotLog.late(e.late, e.ofLastKill);
+			}
+		}
+		saveMaggot();
+	}
+
+	private List<MaggotWatch.Drop> drops(java.util.Collection<ItemStack> items)
+	{
+		List<MaggotWatch.Drop> out = new ArrayList<>();
+		for (ItemStack s : items)
+		{
+			out.add(new MaggotWatch.Drop(name(s.getId()), s.getQuantity(), (long) itemManager.getItemPrice(s.getId()) * s.getQuantity()));
+		}
+		return out;
+	}
+
+	private void saveMaggot()
+	{
+		if (configManager.getRSProfileKey() != null)
+		{
+			configManager.setRSProfileConfiguration(CodexBossPilotConfig.GROUP, MaggotLog.KEY, maggotLog.toJson(gson));
+		}
+	}
+
+	/** The Maggot King's kill log and trips, the drops in the bank or pack, and the account against the wiki's guides. */
+	private MaggotRun maggotRun(Account account)
+	{
+		List<String> owned = new ArrayList<>(bankStock.asMap().keySet());
+		owned.addAll(carried.asMap().keySet());
+		Logbook.Entry e = logbook.peek(Bosses.MAGGOT_KING);
+		return new MaggotRun(maggotLog, owned, account, logbook.rates(Bosses.MAGGOT_KING), e == null ? null : e.trips, config.maggotGoal());
 	}
 
 	// ---- Zalcano ----
@@ -1706,6 +1897,16 @@ public class CodexBossPilotPlugin extends Plugin
 		chestWait = -1;
 		lastChestAt = 0;
 		zalcanoLog = ZalcanoLog.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, ZalcanoLog.KEY));
+		maggotLog = MaggotLog.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, MaggotLog.KEY));
+		maggotWatch.reset();
+		int maggotKc = client.getVarpValue(MaggotKing.KILLS_VARP);
+		if (maggotKc > 0)
+		{
+			maggotWatch.baseline(maggotKc);
+		}
+		lastMaggotAt = 0;
+		lastMaggotTrip = null;
+		lastPopTick = -1000;
 		lunarLog = LunarLog.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, LunarLog.KEY));
 		gauntletLog = GauntletLog.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, GauntletLog.KEY));
 		gauntletWatch.abort(gauntletTicks);
@@ -1858,9 +2059,11 @@ public class CodexBossPilotPlugin extends Plugin
 		Trip trip = tracker.current();
 		// In the Gauntlet nothing carried comes in, so there are no supplies to count down.
 		boolean gauntlet = trip != null && trip.getBoss() == Bosses.GAUNTLET;
-		Outlook outlook = trip == null || gauntlet ? Outlook.UNKNOWN : Outlook.of(trip, logbook.rates(trip.getBoss()));
+		// At the Maggot King nothing on the plaque moves during a fight: no supplies countdown, no reminders.
+		boolean maggot = trip != null && trip.getBoss() == Bosses.MAGGOT_KING;
+		Outlook outlook = trip == null || gauntlet || maggot ? Outlook.UNKNOWN : Outlook.of(trip, logbook.rates(trip.getBoss()));
 		List<ChargeCheck.Line> tripCharges = Collections.emptyList();
-		if (trip != null && !gauntlet && loggedIn && config.charges())
+		if (trip != null && !gauntlet && !maggot && loggedIn && config.charges())
 		{
 			tripCharges = chargeLines(trip.getBoss(), setups.getOrDefault(trip.getBoss().getKey(), Collections.emptyList()), trip,
 				outlook.getLevel() == Outlook.Level.UNKNOWN ? -1 : outlook.getKills());
@@ -1880,14 +2083,16 @@ public class CodexBossPilotPlugin extends Plugin
 		}
 
 		// No eat or prayer reminders in the Gauntlet: nothing there speaks during the Hunllef fight.
-		List<Reminders.Reminder> reminders = loggedIn && !gauntlet ? reminders(trip) : Collections.emptyList();
+		List<Reminders.Reminder> reminders = loggedIn && !gauntlet && !maggot ? reminders(trip) : Collections.emptyList();
 		String tripNote = trip == null ? "" : note(trip.getBoss());
 		BarrowsRun barrows = loggedIn ? barrowsRun() : null;
 		ZalcanoRun zalcano = loggedIn ? zalcanoRun() : null;
 		LunarRun moons = loggedIn ? lunarRun() : null;
 		GauntletRun gauntletRun = loggedIn ? gauntletRun() : null;
+		MaggotRun maggotRun = loggedIn ? maggotRun(account) : null;
 		tripPlaque.show(loggedIn && trip != null && config.tripPlaque()
 			? gauntlet ? Plaques.gauntlet(trip, gauntletRun, now)
+			: maggot ? Plaques.maggot(trip, maggotRun, logbook, now)
 			: Plaques.trip(trip, outlook, logbook, reminders, tripNote, now, trip.getBoss() == Bosses.BARROWS ? barrows : null,
 				trip.getBoss() == Bosses.ZALCANO ? zalcano : null, trip.getBoss() == Bosses.MOONS ? moons : null) : null);
 		List<ChargeCheck.Line> nextCharges = !loggedIn || next == null || !config.charges() ? Collections.emptyList()
@@ -1912,7 +2117,8 @@ public class CodexBossPilotPlugin extends Plugin
 			.withBarrows(barrows)
 			.withZalcano(zalcano)
 			.withMoons(moons)
-			.withGauntlet(gauntletRun);
+			.withGauntlet(gauntletRun)
+			.withMaggot(maggotRun);
 		SwingUtilities.invokeLater(() -> p.update(view));
 	}
 

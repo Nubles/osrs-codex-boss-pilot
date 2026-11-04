@@ -3,6 +3,7 @@ package com.codex.bosspilot;
 import com.codex.bosspilot.combat.Fighter;
 import com.codex.bosspilot.core.Aim;
 import com.codex.bosspilot.core.Barrows;
+import com.codex.bosspilot.core.MaggotKing;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
@@ -64,6 +65,14 @@ public interface CodexBossPilotConfig extends Config
 	default Barrows.Aim barrowsAim()
 	{
 		return Barrows.Aim.BLOOD_RUNES;
+	}
+
+	@ConfigItem(keyName = "maggotGoal", name = "Maggot King goal", position = 7, section = trip,
+		description = "The Maggot King drop to time at your own pace: the kills and hours for even odds and for 9 in 10,"
+			+ " as you loot the corpse")
+	default MaggotKing.Unique maggotGoal()
+	{
+		return MaggotKing.Unique.ELDER_FANG;
 	}
 
 	@ConfigItem(keyName = "tripPlaque", name = "Trip plaque", position = 0, section = trip,

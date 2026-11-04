@@ -10,6 +10,9 @@ import com.codex.bosspilot.core.GauntletWatch;
 import com.codex.bosspilot.core.KitCheck;
 import com.codex.bosspilot.core.Logbook;
 import com.codex.bosspilot.core.LunarRun;
+import com.codex.bosspilot.core.MaggotKing;
+import com.codex.bosspilot.core.MaggotLog;
+import com.codex.bosspilot.core.MaggotRun;
 import com.codex.bosspilot.core.Outlook;
 import com.codex.bosspilot.core.Reminders;
 import com.codex.bosspilot.core.Supply;
@@ -152,6 +155,61 @@ public final class Plaques
 			}
 		}
 		return new Plaque.Content("BOSS PILOT: ON A TRIP", title, Theme.GOLD, lines);
+	}
+
+	/**
+	 * The trip plaque at the Maggot King. Every line changes only when a kill ends: kills, loot and
+	 * deaths this trip, the last kill (its fight time when the game gives one, its loot), and the
+	 * chosen drop against its rate with the player's own pace. No supplies countdown and no
+	 * reminders: nothing on it moves during a fight.
+	 */
+	public static Plaque.Content maggot(Trip trip, MaggotRun run, Logbook book, long now)
+	{
+		List<Plaque.Line> lines = new ArrayList<>();
+		lines.add(new Plaque.Line(Format.plural(trip.getKills(), "kill", "kills") + " in " + Format.clock(trip.elapsed(now) / 1000.0),
+			Theme.TEXT, trip.getLoot() > 0 ? Format.number(trip.getLoot()) + " loot" : null));
+		if (trip.getDeaths() > 0)
+		{
+			lines.add(new Plaque.Line(trip.getDeaths() == 1 ? "1 death this trip" : trip.getDeaths() + " deaths this trip", Theme.EMBER));
+		}
+		if (!trip.getKillSeconds().isEmpty())
+		{
+			Logbook.Entry e = book.peek(trip.getBoss());
+			double best = e == null ? 0 : e.best;
+			List<Double> times = trip.getKillSeconds();
+			lines.add(new Plaque.Line("Last " + Format.clock(times.get(times.size() - 1)) + ", average " + Format.clock(trip.averageKill()),
+				Theme.TEXT_MUTED, best > 0 ? "best " + Format.clock(best) : null));
+		}
+		if (run != null)
+		{
+			MaggotLog.Kill last = run.getLog().last();
+			String pace = run.paceText();
+			if (last != null && trip.getKills() > 0)
+			{
+				lines.add(new Plaque.Line(lastKill(last), Theme.TEXT_MUTED, pace));
+				pace = null;
+			}
+			boolean lucky = last != null && !last.uniques.isEmpty();
+			lines.add(new Plaque.Line(run.plaqueText(), lucky ? Theme.GREEN : Theme.VIOLET, pace));
+		}
+		return new Plaque.Content("BOSS PILOT: ON A TRIP", trip.getBoss().getName(), Theme.GOLD, lines);
+	}
+
+	/** "Last loot: 412,300 (stomach)", "Last loot: eggs, nothing", "Last kill: not looted". */
+	static String lastKill(MaggotLog.Kill k)
+	{
+		MaggotKing.Choice c = k.choice();
+		String how = c == MaggotKing.Choice.EGGS ? "eggs" : c == MaggotKing.Choice.STOMACH
+			? "stomach" : null;
+		if (k.value < 0)
+		{
+			return "Last kill: not looted";
+		}
+		if (k.value == 0)
+		{
+			return "Last loot: " + (how == null ? "" : how + ", ") + (k.items.isEmpty() ? "nothing" : String.join(", ", k.items));
+		}
+		return "Last loot: " + Format.number(k.value) + (how == null ? "" : " (" + how + ")");
 	}
 
 	/** The Barrows run on the trip plaque. */

@@ -361,10 +361,41 @@ public final class Bosses
 		.brief("Rewards", "Only a completed run rolls the seeds and the pet. Dying or leaving early gives a small token reward.")
 		.build();
 
+	/**
+	 * The Maggot King, as a planned trip and a kill log. Facts (oldschool.runescape.wiki, Maggot
+	 * King, read 4 November 2026): "requires completion of The Blood Moon Rises to kill"; "Players
+	 * may only fight the boss by themselves, and the fight takes place inside an instance"; "a mix
+	 * of melee and either magic or ranged is required to fight the Maggot King" and "it cannot be
+	 * attacked with melee until it falls below ~980 hitpoints (65%)"; "Use Drakan's medallion to get
+	 * to Castle Drakan, enter Vampyrium, and then run east"; "The entrance to its lair can be found
+	 * in the forest east of Sangvesti, near the Ruined Village"; the aranei scout's quick travel;
+	 * "Open-stomach" rolls the normal drop table and "Take-eggs" trades it for a better pet chance.
+	 * The suggested combat level is The Blood Moon Rises' own recommendation ("110 Combat level"), a
+	 * floor: the wiki gives none for the boss. The food and prayer in the kit are Boss Pilot's suggestion for a few kills, not the wiki's;
+	 * your own trips' rates replace them. No line here is about the fight as it happens.
+	 */
+	public static final Boss MAGGOT_KING = Boss.builder("maggotking", "Maggot King", Boss.Tier.LATE)
+		.where("The Maggot King's lair, east of Sangvesti in Vampyrium",
+			"Drakan's medallion to Castle Drakan, into Vampyrium, then east to the forest past Sangvesti, near the Ruined Village")
+		.notes("Solo only, in an instance.",
+			"Bring melee and either magic or ranged: melee cannot touch it until it is below about 65% of its hitpoints.",
+			"Rescue the aranei scout south-east of Sangvesti first to unlock quick travel to the lair.",
+			"After each kill, Open-stomach rolls the drop table; Take-eggs gives up the loot for a better pet chance.",
+			"Vampyrium needs The Blood Moon Rises.")
+		.npcs("Maggot King", MaggotKing.CORPSE_NAME)
+		.kc("Maggot King")
+		.quest("THE_BLOOD_MOON_RISES")
+		.suggested(110)
+		.kit(Supply.optional("Drakan's medallion", 1, "Drakan's medallion"), Supply.food(400), Supply.doses("Prayer", 16, PRAYER))
+		.brief("Two styles", "Pack melee and magic or ranged. The fight opens at range; melee only lands once it is below about 65%.")
+		.brief("Solo instance", "Only you can fight it, and the fight is in your own instance.")
+		.brief("The corpse", "Open-stomach for the drop table and its uniques, or Take-eggs for the pet at 1 in 1,502 instead of 1 in 3,500.")
+		.build();
+
 	public static final List<Boss> ALL = Collections.unmodifiableList(Arrays.asList(
 		OBOR, BRYOPHYTA, SCURRIUS, GIANT_MOLE, BARROWS, SARACHNIS, KALPHITE_QUEEN, KING_BLACK_DRAGON,
 		DAGANNOTH_KINGS, KRAKEN, THERMONUCLEAR, GROTESQUE_GUARDIANS, ZULRAH, VORKATH,
-		GRAARDOR, ZILYANA, KREEARRA, KRIL, ZALCANO, MOONS, GAUNTLET));
+		GRAARDOR, ZILYANA, KREEARRA, KRIL, ZALCANO, MOONS, GAUNTLET, MAGGOT_KING));
 
 	private Bosses()
 	{

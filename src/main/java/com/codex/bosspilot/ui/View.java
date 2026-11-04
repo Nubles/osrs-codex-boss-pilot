@@ -12,6 +12,7 @@ import com.codex.bosspilot.core.Reminders;
 import com.codex.bosspilot.core.Review;
 import com.codex.bosspilot.core.Setup;
 import com.codex.bosspilot.core.Trip;
+import com.codex.bosspilot.core.MaggotRun;
 import com.codex.bosspilot.core.ZalcanoRun;
 import java.util.Collections;
 import java.util.List;
@@ -44,6 +45,7 @@ public final class View
 	private List<ChargeCheck.Line> tripCharges = Collections.emptyList();
 	private BarrowsRun barrows;
 	private ZalcanoRun zalcano;
+	private MaggotRun maggot;
 	private LunarRun moons;
 	private GauntletRun gauntlet;
 
@@ -102,6 +104,19 @@ public final class View
 	{
 		this.gauntlet = gauntlet;
 		return this;
+	}
+
+	/** The same view with the Maggot King kill log; null leaves it out. */
+	public View withMaggot(MaggotRun maggot)
+	{
+		this.maggot = maggot;
+		return this;
+	}
+
+	/** The Maggot King kill log, trips and odds, or null. */
+	public MaggotRun getMaggot()
+	{
+		return maggot;
 	}
 
 	/** The Gauntlet run and run log, or null. */
