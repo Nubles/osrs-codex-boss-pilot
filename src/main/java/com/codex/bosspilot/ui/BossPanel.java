@@ -15,6 +15,8 @@ import com.codex.bosspilot.core.Review;
 import com.codex.bosspilot.core.Setup;
 import com.codex.bosspilot.core.Supply;
 import com.codex.bosspilot.core.Trip;
+import com.codex.bosspilot.core.Zalcano;
+import com.codex.bosspilot.core.ZalcanoRun;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -334,23 +336,27 @@ public class BossPanel extends PluginPanel
 		list.add(new SectionHeader("Requirements"));
 		list.add(requirements(p));
 
-		list.space(2);
-		list.add(new SectionHeader("Your best setup", view.setups.isEmpty() ? null : view.setups.get(0).getKind()));
-		if (view.setupsPending)
+		// Zalcano is fought with a pickaxe and skills, so there is no combat setup to rate.
+		if (b.getTier() != Boss.Tier.SKILLING)
 		{
-			list.add(note("Working out the best setup you own..."));
-		}
-		else if (view.setups.isEmpty())
-		{
-			list.add(note(b.getTargets().isEmpty()
-				? "No fight data for " + b.getName() + " yet, so there is no setup to rate. Bring your strongest gear for the styles below."
-				: "Open your bank once so Boss Pilot knows what gear you own."));
-		}
-		else
-		{
-			for (Setup s : view.setups)
+			list.space(2);
+			list.add(new SectionHeader("Your best setup", view.setups.isEmpty() ? null : view.setups.get(0).getKind()));
+			if (view.setupsPending)
 			{
-				list.add(setup(s));
+				list.add(note("Working out the best setup you own..."));
+			}
+			else if (view.setups.isEmpty())
+			{
+				list.add(note(b.getTargets().isEmpty()
+					? "No fight data for " + b.getName() + " yet, so there is no setup to rate. Bring your strongest gear for the styles below."
+					: "Open your bank once so Boss Pilot knows what gear you own."));
+			}
+			else
+			{
+				for (Setup s : view.setups)
+				{
+					list.add(setup(s));
+				}
 			}
 		}
 
@@ -379,6 +385,11 @@ public class BossPanel extends PluginPanel
 		{
 			barrows(list, barrows, false);
 		}
+		ZalcanoRun zalcano = view.getZalcano();
+		if (b == Bosses.ZALCANO && zalcano != null)
+		{
+			zalcano(list, zalcano, false);
+		}
 
 		if (!b.getBriefing().isEmpty())
 		{
@@ -395,7 +406,10 @@ public class BossPanel extends PluginPanel
 		list.add(new SectionHeader("Before you go"));
 		Card notes = new Card(new BorderLayout());
 		StackPanel nb = new StackPanel(4, 0);
-		nb.add(Ui.wrapped("Attacks: " + b.getAttacks() + ".", Theme.small(), Theme.TEXT, TEXT));
+		if (!b.getAttacks().isEmpty())
+		{
+			nb.add(Ui.wrapped("Attacks: " + b.getAttacks() + ".", Theme.small(), Theme.TEXT, TEXT));
+		}
 		for (String n : b.getNotes())
 		{
 			nb.add(Ui.wrapped(n, Theme.small(), Theme.TEXT_MUTED, TEXT));
@@ -481,8 +495,11 @@ public class BossPanel extends PluginPanel
 		{
 			body.add(Ui.wrapped("None: anyone can go.", Theme.small(), Theme.GREEN, TEXT));
 		}
-		body.add(Ui.wrapped("Combat " + b.getSuggestedCombat() + " is comfortable"
-			+ (p.getStatus() == Readiness.Status.STRETCH ? " (a stretch for you)" : "") + ".", Theme.small(), Theme.TEXT_FAINT, TEXT));
+		if (b.getSuggestedCombat() > 0)
+		{
+			body.add(Ui.wrapped("Combat " + b.getSuggestedCombat() + " is comfortable"
+				+ (p.getStatus() == Readiness.Status.STRETCH ? " (a stretch for you)" : "") + ".", Theme.small(), Theme.TEXT_FAINT, TEXT));
+		}
 		card.add(body, BorderLayout.CENTER);
 		return card;
 	}
@@ -651,11 +668,25 @@ public class BossPanel extends PluginPanel
 		grid.add(new StatTile("Average", t.getKillSeconds().isEmpty() ? "-" : Format.clock(t.averageKill()), !t.getKillSeconds().isEmpty()));
 		grid.add(new StatTile("Best", best > 0 ? Format.clock(best) : "-", best > 0));
 		grid.add(new StatTile("Food", t.getFoodNow() < 0 ? "-" : t.getFoodNow() + " hp", t.getFoodNow() > 0));
-		grid.add(new StatTile("Prayer", t.getDosesNow() < 0 ? "-" : t.getDosesNow() + " doses", t.getDosesNow() > 0));
+		if (t.getBoss().getTier() == Boss.Tier.SKILLING)
+		{
+			// No prayer on a skilling boss: the trip's pace instead.
+			double hours = t.elapsed(view.now) / 3_600_000.0;
+			boolean paced = t.getKills() > 0 && hours > 0;
+			grid.add(new StatTile("Kills/hr", paced ? String.format(java.util.Locale.ROOT, "%.1f", t.getKills() / hours) : "-", paced));
+		}
+		else
+		{
+			grid.add(new StatTile("Prayer", t.getDosesNow() < 0 ? "-" : t.getDosesNow() + " doses", t.getDosesNow() > 0));
+		}
 		list.add(grid);
 		if (t.getBoss() == Bosses.BARROWS && view.getBarrows() != null)
 		{
 			barrows(list, view.getBarrows(), true);
+		}
+		if (t.getBoss() == Bosses.ZALCANO && view.getZalcano() != null)
+		{
+			zalcano(list, view.getZalcano(), true);
 		}
 		if (!view.getTripCharges().isEmpty())
 		{
@@ -701,6 +732,28 @@ public class BossPanel extends PluginPanel
 			list.add(new SectionHeader("The set", (24 - r.getMissing().size()) + " of 24"));
 			list.add(BarrowsCard.set(r, TEXT));
 		}
+	}
+
+	/** Zalcano: the player's own kills, the rare drops against their rates, and the way in. */
+	private void zalcano(StackPanel list, ZalcanoRun z, boolean onTrip)
+	{
+		if (!onTrip)
+		{
+			list.space(2);
+			list.add(new SectionHeader("Getting there", z.getWayIn().isRead() ? "from Wayfinder" : null));
+			list.add(ZalcanoCard.travel(z, TEXT));
+		}
+		list.space(2);
+		list.add(new SectionHeader("Your kills", z.getLog().isEmpty() ? null : "KC " + Format.number(z.getLog().kills)));
+		list.add(ZalcanoCard.kills(z, TEXT));
+		list.space(2);
+		int owned = 0;
+		for (Zalcano.Unique u : Zalcano.Unique.values())
+		{
+			owned += z.owns(u) ? 1 : 0;
+		}
+		list.add(new SectionHeader("Rare drops", owned + " of " + Zalcano.Unique.values().length));
+		list.add(ZalcanoCard.uniques(z, TEXT));
 	}
 
 	private Color outlookColor()

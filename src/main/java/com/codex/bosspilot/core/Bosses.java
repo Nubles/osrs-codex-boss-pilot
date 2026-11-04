@@ -286,10 +286,31 @@ public final class Bosses
 		.brief("Bodyguards", "Three bodyguards fight with him.")
 		.build();
 
+	/** Pickaxes by their in-game names (RuneLite gameval ItemID); "Iron pickaxe*" also takes the (nz) ones. */
+	static final String[] PICKAXE = {"Bronze pickaxe", "Iron pickaxe*", "Steel pickaxe", "Black pickaxe", "Mithril pickaxe*",
+		"Adamant pickaxe", "Rune pickaxe*", "Gilded pickaxe", "Dragon pickaxe", "Dragon pickaxe (or)", "Infernal pickaxe",
+		"Infernal pickaxe (or)", "Crystal pickaxe", "3rd Age pickaxe"};
+
+	public static final Boss ZALCANO = Boss.builder("zalcano", "Zalcano", Boss.Tier.SKILLING)
+		.where("Zalcano's prison, under Prifddinas", "Prifddinas, then the teleport platform just west of the south-eastern bank")
+		.notes("A skilling boss: higher Mining, Smithing and Runecraft help most, and more Hitpoints to stand her attacks.",
+			"Prifddinas needs Song of the Elves. The quickest way there is a teleport crystal or an eternal one.",
+			"Your reward goes to item drops or Mining experience; Rhiannon switches it. Rare drops roll either way.")
+		.quest("SONG_OF_THE_ELVES")
+		.skill("Mining", 70)
+		.skill("Smithing", 70)
+		.kit(Supply.must("Pickaxe", 1, PICKAXE), Supply.doses("Stamina", 4, "Stamina potion"), Supply.food(100),
+			Supply.optional("Teleport crystal", 1, "Teleport crystal*", "Eternal teleport crystal"),
+			Supply.optional("Varrock armour", 1, "Varrock armour*"), Supply.optional("Graceful top", 1, "Graceful top*"))
+		.brief("Earning drops", "Do at least 5 damage to her shield for any drop, and 31 combined damage to be in the running for rare drops and the pet.")
+		.brief("MVP", "The player who deals the most damage gets 10% more of their non-unique loot, rounded up.")
+		.brief("Rare drops", "The tool seed goes to one player, more often the one with more points. The shard comes more often the more you contribute. Smolcano is the same for everyone eligible.")
+		.build();
+
 	public static final List<Boss> ALL = Collections.unmodifiableList(Arrays.asList(
 		OBOR, BRYOPHYTA, SCURRIUS, GIANT_MOLE, BARROWS, SARACHNIS, KALPHITE_QUEEN, KING_BLACK_DRAGON,
 		DAGANNOTH_KINGS, KRAKEN, THERMONUCLEAR, GROTESQUE_GUARDIANS, ZULRAH, VORKATH,
-		GRAARDOR, ZILYANA, KREEARRA, KRIL));
+		GRAARDOR, ZILYANA, KREEARRA, KRIL, ZALCANO));
 
 	private Bosses()
 	{

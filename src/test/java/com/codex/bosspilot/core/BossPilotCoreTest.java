@@ -333,7 +333,8 @@ public class BossPilotCoreTest
 			assertFalse(b.getKcNames().isEmpty());
 			assertFalse(b.getKit().isEmpty());
 			assertFalse(b.getWhere().isEmpty());
-			assertTrue(b.getSuggestedCombat() > 0);
+			// A skilling boss such as Zalcano is fought with skills, so it suggests no combat level.
+			assertTrue(b.getTier() == Boss.Tier.SKILLING ? b.getSuggestedCombat() == 0 : b.getSuggestedCombat() > 0);
 			assertFalse("no briefing for " + b.getName(), b.getBriefing().isEmpty());
 			assertSame(b, Bosses.byKey(b.getKey()));
 			for (String npc : b.getNpcNames())

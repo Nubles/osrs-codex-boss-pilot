@@ -28,6 +28,11 @@ import com.codex.bosspilot.core.Stock;
 import com.codex.bosspilot.core.Supply;
 import com.codex.bosspilot.core.Trip;
 import com.codex.bosspilot.core.TripTracker;
+import com.codex.bosspilot.core.WayIn;
+import com.codex.bosspilot.core.Zalcano;
+import com.codex.bosspilot.core.ZalcanoLog;
+import com.codex.bosspilot.core.ZalcanoLoot;
+import com.codex.bosspilot.core.ZalcanoRun;
 import com.codex.bosspilot.data.Gear;
 import com.codex.bosspilot.data.RoadmapData;
 import com.codex.bosspilot.data.Target;
@@ -58,6 +63,7 @@ import net.runelite.api.Client;
 import net.runelite.api.GameObject;
 import net.runelite.api.GameState;
 import net.runelite.api.Item;
+import net.runelite.api.TileItem;
 import net.runelite.api.ItemComposition;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.NPC;
@@ -73,6 +79,7 @@ import net.runelite.api.events.GameObjectDespawned;
 import net.runelite.api.events.GameObjectSpawned;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.events.ItemSpawned;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.gameval.DBTableID;
@@ -149,6 +156,8 @@ public class CodexBossPilotPlugin extends Plugin
 	static final String TUNNEL_PROMPT = "hidden tunnel";
 	/** How long the chest count and the chest's contents may arrive apart and still be one chest. */
 	static final int CHEST_TICKS = 10;
+	/** How long after a Zalcano kill is logged the pet's message still belongs to it. */
+	static final int ZALCANO_LATE_TICKS = 5;
 	/** The varbits of the six brothers, in Barrows.Brother order. */
 	private static final int[] BROTHER_VARBITS = {
 		VarbitID.BARROWS_KILLED_AHRIM, VarbitID.BARROWS_KILLED_DHAROK, VarbitID.BARROWS_KILLED_GUTHAN,
@@ -231,6 +240,19 @@ public class CodexBossPilotPlugin extends Plugin
 	/** After a chest, the run's varbits are the old run's until the game clears them. */
 	private boolean runCleared;
 
+	// ---- Zalcano ----
+	/** The player's own Zalcano kills. */
+	private ZalcanoLog zalcanoLog = new ZalcanoLog();
+	/** The kill being put together from its message, its loot and the pet's message. */
+	private final ZalcanoLoot zalcanoLoot = new ZalcanoLoot();
+	/** When the last Zalcano kill of this trip came, to time the next; 0 when none. */
+	private long lastZalcanoKillAt;
+	private Trip lastZalcanoTrip;
+	/** The tick the last Zalcano kill was logged, so a pet message just after it joins it. */
+	private int lastZalcanoTick = -1000;
+	/** The player's ways into Prifddinas, from Codex Wayfinder. */
+	private WayIn wayIn = WayIn.none();
+
 	/** Names of item ids, looked up once. Client thread only. */
 	private final Map<Integer, String> names = new HashMap<>();
 
@@ -307,6 +329,7 @@ public class CodexBossPilotPlugin extends Plugin
 		ticks++;
 		nearby = findNearby();
 		readBarrows();
+		readZalcano();
 		Stock pack = carried;
 		tracker.observe(nearby, pack.foodHeal(), pack.doses(PRAYER_POTIONS), freeSlots(), System.currentTimeMillis());
 		Trip on = tracker.current();
@@ -372,13 +395,18 @@ public class CodexBossPilotPlugin extends Plugin
 	public void onConfigChanged(ConfigChanged event)
 	{
 		if (CodexBossPilotConfig.GROUP.equals(event.getGroup()) && !Logbook.KEY.equals(event.getKey()) && !BANK_KEY.equals(event.getKey())
-			&& !ChargeBook.KEY.equals(event.getKey()) && !ChestLog.KEY.equals(event.getKey()) && !TUNNEL_KEY.equals(event.getKey()))
+			&& !ChargeBook.KEY.equals(event.getKey()) && !ChestLog.KEY.equals(event.getKey()) && !TUNNEL_KEY.equals(event.getKey())
+			&& !ZalcanoLog.KEY.equals(event.getKey()))
 		{
 			if ("boost".equals(event.getKey()))
 			{
 				setupsKey = null;
 			}
 			clientThread.invokeLater(this::evaluate);
+		}
+		else if (WayIn.GROUP.equals(event.getGroup()) && WayIn.KEY.equals(event.getKey()))
+		{
+			wayIn = WayIn.parse(gson, configManager.getRSProfileConfiguration(WayIn.GROUP, WayIn.KEY));
 		}
 	}
 
@@ -400,6 +428,18 @@ public class CodexBossPilotPlugin extends Plugin
 			// The Barrows chest's reward; clue caskets share this container, but not this place.
 			readChest(event.getItemContainer());
 		}
+	}
+
+	@Subscribe
+	public void onItemSpawned(ItemSpawned event)
+	{
+		TileItem item = event.getItem();
+		if (item == null || item.getOwnership() != TileItem.OWNERSHIP_SELF || region() != Zalcano.PRISON_REGION)
+		{
+			return;
+		}
+		// Only the player's own drops in the prison: loot is put together around the kill message.
+		zalcanoLoot.item(ticks, name(item.getId()), item.getQuantity(), (long) itemManager.getItemPrice(item.getId()) * item.getQuantity());
 	}
 
 	@Subscribe
@@ -448,11 +488,20 @@ public class CodexBossPilotPlugin extends Plugin
 					chestKc = kc.count;
 					chestWait = chestWait < 0 ? 0 : chestWait;
 				}
+				else if (boss == Bosses.ZALCANO)
+				{
+					zalcanoLoot.kill(ticks, kc.count);
+				}
 				tracker.kill(boss, now);
 				chargesKill(boss);
 				saveLogbook();
 				saveFinished();
 			}
+			return;
+		}
+		if (Zalcano.petMessage(message) && region() == Zalcano.PRISON_REGION)
+		{
+			petMessage();
 			return;
 		}
 		double seconds = Chat.duration(message);
@@ -472,7 +521,8 @@ public class CodexBossPilotPlugin extends Plugin
 	{
 		NPC npc = event.getNpc();
 		Boss boss = npc == null ? null : Bosses.byNpc(npc.getName());
-		if (boss != null)
+		// Zalcano's loot is read from the ground by the kill log, which adds it to the trip.
+		if (boss != null && boss != Bosses.ZALCANO)
 		{
 			tracker.loot(boss, value(event.getItems()), System.currentTimeMillis());
 		}
@@ -724,6 +774,11 @@ public class CodexBossPilotPlugin extends Plugin
 			// Barrows is a run through the mounds, crypts and tunnels, not one fight in sight.
 			return Bosses.BARROWS;
 		}
+		if (region == Zalcano.PRISON_REGION)
+		{
+			// The whole prison is the trip, with or without Zalcano up between kills.
+			return Bosses.ZALCANO;
+		}
 		for (NPC npc : client.getTopLevelWorldView().npcs())
 		{
 			if (npc == null || npc.getName() == null)
@@ -737,6 +792,68 @@ public class CodexBossPilotPlugin extends Plugin
 			}
 		}
 		return null;
+	}
+
+	// ---- Zalcano ----
+
+	/** Each tick: logs the kill once its loot has had time to land. */
+	private void readZalcano()
+	{
+		Trip t = tracker.current();
+		if (t == null || t.getBoss() != Bosses.ZALCANO || t != lastZalcanoTrip)
+		{
+			// A new trip times its kills afresh: the walk in is not a kill.
+			lastZalcanoKillAt = 0;
+			lastZalcanoTrip = t != null && t.getBoss() == Bosses.ZALCANO ? t : null;
+		}
+		long now = System.currentTimeMillis();
+		long seconds = lastZalcanoKillAt > 0 ? Math.max(1, (now - lastZalcanoKillAt) / 1000) : -1;
+		ZalcanoLog.Kill kill = zalcanoLoot.poll(ticks, now, seconds);
+		if (kill == null)
+		{
+			return;
+		}
+		zalcanoLog.add(kill);
+		lastZalcanoTick = ticks;
+		if (lastZalcanoTrip != null)
+		{
+			lastZalcanoKillAt = now;
+			if (kill.value > 0)
+			{
+				tracker.loot(Bosses.ZALCANO, kill.value, now);
+			}
+		}
+		saveZalcano();
+	}
+
+	/** The pet's message: with the kill being put together, or late for the one just logged. */
+	private void petMessage()
+	{
+		if (!zalcanoLoot.pending() && ticks - lastZalcanoTick <= ZALCANO_LATE_TICKS)
+		{
+			zalcanoLog.late(Zalcano.Unique.PET.getName());
+			saveZalcano();
+		}
+		else
+		{
+			zalcanoLoot.pet(ticks);
+		}
+	}
+
+	private void saveZalcano()
+	{
+		if (configManager.getRSProfileKey() != null)
+		{
+			configManager.setRSProfileConfiguration(CodexBossPilotConfig.GROUP, ZalcanoLog.KEY, zalcanoLog.toJson(gson));
+		}
+	}
+
+	/** Zalcano's kill log, the rare drops in the bank or pack and the ways into Prifddinas. */
+	private ZalcanoRun zalcanoRun()
+	{
+		List<String> owned = new ArrayList<>(bankStock.asMap().keySet());
+		owned.addAll(carried.asMap().keySet());
+		return new ZalcanoRun(zalcanoLog, owned, wayIn);
 	}
 
 	// ---- Barrows ----
@@ -1093,6 +1210,11 @@ public class CodexBossPilotPlugin extends Plugin
 		chestItems = null;
 		chestWait = -1;
 		lastChestAt = 0;
+		zalcanoLog = ZalcanoLog.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, ZalcanoLog.KEY));
+		zalcanoLoot.clear();
+		lastZalcanoKillAt = 0;
+		lastZalcanoTrip = null;
+		wayIn = WayIn.parse(gson, configManager.getRSProfileConfiguration(WayIn.GROUP, WayIn.KEY));
 		BankSnapshot own = BankSnapshot.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, BANK_KEY));
 		BankSnapshot steward = own != null ? null
 			: BankSnapshot.parse(gson, configManager.getRSProfileConfiguration(STEWARD_GROUP, STEWARD_KEY));
@@ -1249,8 +1371,10 @@ public class CodexBossPilotPlugin extends Plugin
 		List<Reminders.Reminder> reminders = loggedIn ? reminders(trip) : Collections.emptyList();
 		String tripNote = trip == null ? "" : note(trip.getBoss());
 		BarrowsRun barrows = loggedIn ? barrowsRun() : null;
+		ZalcanoRun zalcano = loggedIn ? zalcanoRun() : null;
 		tripPlaque.show(loggedIn && trip != null && config.tripPlaque()
-			? Plaques.trip(trip, outlook, logbook, reminders, tripNote, now, trip.getBoss() == Bosses.BARROWS ? barrows : null) : null);
+			? Plaques.trip(trip, outlook, logbook, reminders, tripNote, now, trip.getBoss() == Bosses.BARROWS ? barrows : null,
+				trip.getBoss() == Bosses.ZALCANO ? zalcano : null) : null);
 		List<ChargeCheck.Line> nextCharges = !loggedIn || next == null || !config.charges() ? Collections.emptyList()
 			: chargeLines(next.getBoss(), setups.getOrDefault(next.getBoss().getKey(), Collections.emptyList()), null,
 				ChargeCheck.kitKills(next.getBoss(), logbook.rates(next.getBoss())));
@@ -1270,7 +1394,8 @@ public class CodexBossPilotPlugin extends Plugin
 		View view = new View(loggedIn, picks, next, shown, shownSetups, setupsPending && shownSetups.isEmpty(), trip, outlook, logbook,
 			review, in.aim, bankSeenAt, now, reminders, shown == null ? "" : note(shown.getBoss()))
 			.withCharges(shownCharges, tripCharges)
-			.withBarrows(barrows);
+			.withBarrows(barrows)
+			.withZalcano(zalcano);
 		SwingUtilities.invokeLater(() -> p.update(view));
 	}
 

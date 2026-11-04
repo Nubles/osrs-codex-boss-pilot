@@ -10,6 +10,7 @@ import com.codex.bosspilot.core.Reminders;
 import com.codex.bosspilot.core.Review;
 import com.codex.bosspilot.core.Setup;
 import com.codex.bosspilot.core.Trip;
+import com.codex.bosspilot.core.ZalcanoRun;
 import java.util.Collections;
 import java.util.List;
 
@@ -40,6 +41,7 @@ public final class View
 	private List<ChargeCheck.Line> charges = Collections.emptyList();
 	private List<ChargeCheck.Line> tripCharges = Collections.emptyList();
 	private BarrowsRun barrows;
+	private ZalcanoRun zalcano;
 
 	public View(boolean loggedIn, List<Ranker.Pick> picks, Ranker.Pick next, Ranker.Pick selected, List<Setup> setups,
 		boolean setupsPending, Trip trip, Outlook outlook, Logbook logbook, Review review, Aim aim, long bankSeenAt, long now,
@@ -75,6 +77,19 @@ public final class View
 	{
 		this.barrows = barrows;
 		return this;
+	}
+
+	/** The same view with the Zalcano kill log; null leaves it out. */
+	public View withZalcano(ZalcanoRun zalcano)
+	{
+		this.zalcano = zalcano;
+		return this;
+	}
+
+	/** The Zalcano kill log, or null. */
+	public ZalcanoRun getZalcano()
+	{
+		return zalcano;
 	}
 
 	/** The Barrows run and chest log, or null. */
