@@ -360,7 +360,7 @@ public class CodexBossPilotPlugin extends Plugin
 		}
 		String message = Text.removeTags(event.getMessage());
 		long now = System.currentTimeMillis();
-		if (readCharges(message, now))
+		if (config.charges() && readCharges(message, now))
 		{
 			return;
 		}
@@ -517,6 +517,10 @@ public class CodexBossPilotPlugin extends Plugin
 	/** A kill: what it used of each charged item the player has on them, at the best pace known. */
 	private void chargesKill(Boss boss)
 	{
+		if (!config.charges())
+		{
+			return;
+		}
 		List<Charged> items = Charged.among(carried.asMap().keySet());
 		if (items.isEmpty())
 		{

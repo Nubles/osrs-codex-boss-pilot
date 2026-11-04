@@ -1,0 +1,29 @@
+# With "Charged gear" switched off, Boss Pilot leaves charges alone: it saves nothing about them,
+# and a trip on which the blowpipe ran dry does not end "Out of charges" with advice to read a
+# Prepare tab line that is switched off too. The same messages as blowpipe-runs-dry.replay.
+include /replays/scenes/zulrah.scene
+watch ending review.debrief.ending
+config charges false
+never saved.chargesV1 ~ blowpipe
+tick 3
+
+chat GAMEMESSAGE "Darts: <col=007f00>Adamant dart x 300</col>. Scales: <col=007f00>2,000 (12.2%)</col>."
+tick
+
+npc SNAKEBOSS_BOSS_RANGED Zulrah 2266 3073 5 level 725 as boss
+tick 4
+expect over = "BOSS PILOT: ON A TRIP"
+items INV clear
+items INV SHARK 10
+items INV _4DOSEPRAYERRESTORE 4
+chat GAMEMESSAGE "Your Zulrah kill count is: 101."
+tick 4
+chat GAMEMESSAGE "Darts: <col=007f00>None</col>. Scales: <col=007f00>1,400 (8.5%)</col>."
+tick 2
+
+remove boss
+tick 2
+state LOGIN_SCREEN
+tick
+expect ending != OUT_OF_CHARGES
+expect ending != null
