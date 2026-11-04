@@ -20,6 +20,7 @@ import com.codex.bosspilot.core.Review;
 import com.codex.bosspilot.core.Setup;
 import com.codex.bosspilot.core.Supply;
 import com.codex.bosspilot.core.Trip;
+import com.codex.bosspilot.core.MaggotRun;
 import com.codex.bosspilot.core.Zalcano;
 import com.codex.bosspilot.core.ZalcanoRun;
 import java.awt.BorderLayout;
@@ -180,8 +181,8 @@ public class BossPanel extends PluginPanel
 		}
 		if (t != null)
 		{
-			crest.update("ON A TRIP: " + t.getBoss().getName().toUpperCase(), t.getKills(), unit(t, false), unit(t, true), view.outlook.text(),
-				view.outlook.shortText(), outlookColor(), Theme.GOLD);
+			crest.update("ON A TRIP: " + t.getBoss().getName().toUpperCase(), t.getKills(), unit(t, false), unit(t, true), outlookText(t, false),
+				outlookText(t, true), outlookColor(), Theme.GOLD);
 			return;
 		}
 		int open = (int) view.openCount();
@@ -413,6 +414,11 @@ public class BossPanel extends PluginPanel
 		if (b == Bosses.GAUNTLET && gauntlet != null)
 		{
 			gauntlet(list, gauntlet, false);
+		}
+		MaggotRun maggot = view.getMaggot();
+		if (b == Bosses.MAGGOT_KING && maggot != null)
+		{
+			maggot(list, maggot, false);
 		}
 
 		if (!b.getBriefing().isEmpty())
@@ -684,7 +690,7 @@ public class BossPanel extends PluginPanel
 			list.add(rc);
 		}
 		Card outlook = new Card(new BorderLayout()).accent(outlookColor()).highlighted(true);
-		outlook.add(Ui.wrapped(view.outlook.text(), Theme.body(), Theme.TEXT, TEXT), BorderLayout.CENTER);
+		outlook.add(Ui.wrapped(outlookText(t, false), Theme.body(), Theme.TEXT, TEXT), BorderLayout.CENTER);
 		list.add(outlook);
 		JPanel grid = new JPanel(new GridLayout(0, 2, 6, 6));
 		grid.setOpaque(false);
@@ -731,6 +737,10 @@ public class BossPanel extends PluginPanel
 		if (t.getBoss() == Bosses.MOONS && view.getMoons() != null)
 		{
 			moons(list, view.getMoons(), true);
+		}
+		if (t.getBoss() == Bosses.MAGGOT_KING && view.getMaggot() != null)
+		{
+			maggot(list, view.getMaggot(), true);
 		}
 		if (!view.getTripCharges().isEmpty())
 		{
@@ -835,6 +845,42 @@ public class BossPanel extends PluginPanel
 		list.add(MoonsCard.sets(r, TEXT));
 	}
 
+	/**
+	 * The Maggot King: the account against the wiki's guides, the player's own kills and trips, the
+	 * five drops against their rates, and the time to the chosen drop at the player's pace.
+	 */
+	private void maggot(StackPanel list, MaggotRun m, boolean onTrip)
+	{
+		if (!onTrip)
+		{
+			list.space(2);
+			int met = 0;
+			int all = 0;
+			for (MaggotRun.Method x : m.methods())
+			{
+				met = Math.max(met, x.met());
+				all = x.getStats().size();
+			}
+			list.add(new SectionHeader("Recommended stats", met + " of " + all + " at best"));
+			list.add(MaggotCard.ready(m, TEXT));
+		}
+		list.space(2);
+		list.add(new SectionHeader("Your kills", m.getLog().isEmpty() ? null : "KC " + Format.number(m.getLog().kills)));
+		list.add(MaggotCard.kills(m, TEXT));
+		if (!onTrip)
+		{
+			list.space(2);
+			list.add(new SectionHeader("Your trips", m.recentTrips(MaggotCard.TRIPS).isEmpty() ? null : "last " + m.recentTrips(MaggotCard.TRIPS).size()));
+			list.add(MaggotCard.trips(m, TEXT));
+		}
+		list.space(2);
+		list.add(new SectionHeader("Your goal", m.owns(m.getGoal()) ? "owned" : null));
+		list.add(MaggotCard.goal(m, TEXT));
+		list.space(2);
+		list.add(new SectionHeader("Collection log", m.ownedCount() + " of " + com.codex.bosspilot.core.MaggotKing.Unique.values().length));
+		list.add(MaggotCard.uniques(m, TEXT));
+	}
+
 	/** Zalcano: the player's own kills, the rare drops against their rates, and the way in. */
 	private void zalcano(StackPanel list, ZalcanoRun z, boolean onTrip)
 	{
@@ -855,6 +901,19 @@ public class BossPanel extends PluginPanel
 		}
 		list.add(new SectionHeader("Rare drops", owned + " of " + Zalcano.Unique.values().length));
 		list.add(ZalcanoCard.uniques(z, TEXT));
+	}
+
+	/**
+	 * What the supplies outlook says. At the Maggot King there is no countdown during a trip: the
+	 * supplies a kill are counted when it ends and shown with the kills below.
+	 */
+	private String outlookText(Trip t, boolean shortForm)
+	{
+		if (t != null && t.getBoss() == Bosses.MAGGOT_KING)
+		{
+			return shortForm ? "Supplies counted after" : "No supplies countdown here: your supplies a kill are counted when the trip ends";
+		}
+		return shortForm ? view.outlook.shortText() : view.outlook.text();
 	}
 
 	private Color outlookColor()
