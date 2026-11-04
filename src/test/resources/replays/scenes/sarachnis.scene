@@ -1,0 +1,21 @@
+# A schematic Sarachnis lair for replays. Not the real map. Boss Pilot finds a boss by its NPC
+# name near the player, and supplies by item name.
+#
+# Facts (oldschool.runescape.wiki): Sarachnis is combat level 318, in the Forthos Dungeon;
+# a shark heals 20; a prayer potion has 4 doses. Item and NPC names are the game's.
+
+scene 1820 9880
+skill ATTACK 80
+skill STRENGTH 80
+skill DEFENCE 80
+skill HITPOINTS 80
+skill PRAYER 70
+item SHARK "Shark"
+item _4DOSEPRAYERRESTORE "Prayer potion(4)"
+items INV SHARK 10
+items INV _4DOSEPRAYERRESTORE 4
+at 1840 9900
+login
+
+watch over tripPlaque.shown.over
+watch title tripPlaque.shown.title
