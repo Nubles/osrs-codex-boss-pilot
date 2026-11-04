@@ -1,0 +1,96 @@
+# A Barrows run on the trip plaque: the trip starts on arriving at the mounds, the brothers killed
+# come from the game's varbits, the crypt with the tunnel is marked when the game asks about it,
+# and the chest is logged from its reward with the chest count, then the next run starts afresh.
+# Schematic, not the real map: the mounds are in region 14131 and the crypts and tunnels in region
+# 14231 (RuneLite's Barrows plugin: BARROWS_REGION_ID, CRYPT_REGION_ID), so the scenes only sit in
+# those regions. Facts: the brothers' varbits are VarbitID.BARROWS_KILLED_*, and the levels killed
+# are VarbitID.BARROWS_KILLED_MONSTER (RuneLite's older Varbits calls it BARROWS_REWARD_POTENTIAL);
+# Ahrim the Blighted and Karil the Tainted are combat level 98, the other four 115
+# (oldschool.runescape.wiki, each brother's page); "reward potential ... capped at 1000 ... The
+# number of brothers killed times two is then added" (Chest (Barrows)); the game's prompt says
+# "You've found a hidden tunnel" (Update:Poll 75 Game Improvements Blog). The chest count message
+# is the form core/Chat reads.
+scene 3520 3264
+skill ATTACK 75
+skill STRENGTH 75
+skill DEFENCE 75
+skill HITPOINTS 75
+skill MAGIC 75
+skill PRAYER 52
+item SPADE "Spade"
+item SHARK "Shark"
+item _4DOSEPRAYERRESTORE "Prayer potion(4)"
+item BARROWS_AHRIM_HEAD "Ahrim's hood" price 60000
+item BLOODRUNE "Blood rune" price 400
+items INV SPADE 1
+items INV SHARK 6
+items INV _4DOSEPRAYERRESTORE 4
+at 3551 3290
+login
+config barrowsAim BLOOD_RUNES
+watch over tripPlaque.shown.over
+watch title tripPlaque.shown.title
+watch line0 tripPlaque.shown.lines.0.text
+watch line1 tripPlaque.shown.lines.1.text
+watch right1 tripPlaque.shown.lines.1.right
+watch line2 tripPlaque.shown.lines.2.text
+watch line3 tripPlaque.shown.lines.3.text
+tick 2
+expect over = "BOSS PILOT: ON A TRIP"
+expect title = Barrows
+expect line0 ~ "0 chests in"
+expect line1 = "No brothers killed yet this run"
+expect line2 = "Tunnel not found yet this run"
+expect line3 ~ "For blood runes: "
+
+# Ahrim down: 98 levels, and two for the brother.
+varbit BARROWS_KILLED_AHRIM 1
+varbit BARROWS_KILLED_MONSTER 98
+tick 2
+expect line1 = "1 of 6 down: Ahrim"
+expect right1 = "potential 100"
+
+# Down in Guthan's crypt, the game asks about the hidden tunnel.
+scene 3520 9664 3
+at 3552 9700 3
+object BARROWS_STAIRS_GUTHAN 3550 9703
+object BARROW_GUTHAN_SARCOPHAGUS 3553 9702
+object BARROWS_STAIRS_AHRIM 3580 9720
+widget Messagebox.TEXT text "You've found a hidden tunnel, do you want to enter?"
+tick 2
+expect line2 = "Tunnel: Guthan's crypt, go there last"
+expect saved.barrowsTunnel = GUTHAN
+close Messagebox.TEXT
+
+# The other five, a skeleton and two giant crypt spiders: 656 + 77 + 158 levels, 891 + 12 = 903.
+varbit BARROWS_KILLED_DHAROK 1
+varbit BARROWS_KILLED_GUTHAN 1
+varbit BARROWS_KILLED_KARIL 1
+varbit BARROWS_KILLED_TORAG 1
+varbit BARROWS_KILLED_VERAC 1
+varbit BARROWS_KILLED_MONSTER 891
+tick 2
+expect line1 = "All six brothers down"
+expect right1 = "potential 903"
+expect line3 = "Past 880 for blood runes: no more tunnel kills"
+
+# The chest: its count, then its reward. The game clears the run.
+chat GAMEMESSAGE "Your Barrows chest count is: 41."
+items TRAIL_REWARDINV BARROWS_AHRIM_HEAD 1
+items TRAIL_REWARDINV BLOODRUNE 200 stacked
+varbit BARROWS_KILLED_AHRIM 0
+varbit BARROWS_KILLED_DHAROK 0
+varbit BARROWS_KILLED_GUTHAN 0
+varbit BARROWS_KILLED_KARIL 0
+varbit BARROWS_KILLED_TORAG 0
+varbit BARROWS_KILLED_VERAC 0
+varbit BARROWS_KILLED_MONSTER 0
+tick 2
+expect line0 ~ "1 chest in"
+expect line0 !~ "kill"
+expect saved.barrowsV1 ~ hood          # the piece, logged
+expect saved.barrowsV1 ~ :903,         # the potential the chest was opened at
+expect saved.barrowsV1 ~ :140000,      # its worth: the hood and 200 blood runes
+expect saved.barrowsTunnel = -
+expect line1 = "No brothers killed yet this run"
+expect line2 = "Tunnel not found yet this run"

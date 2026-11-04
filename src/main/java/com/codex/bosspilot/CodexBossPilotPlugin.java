@@ -7,11 +7,14 @@ import com.codex.bosspilot.combat.SlayerTask;
 import com.codex.bosspilot.core.Account;
 import com.codex.bosspilot.core.Aim;
 import com.codex.bosspilot.core.BankSnapshot;
+import com.codex.bosspilot.core.Barrows;
+import com.codex.bosspilot.core.BarrowsRun;
 import com.codex.bosspilot.core.Boss;
 import com.codex.bosspilot.core.Bosses;
 import com.codex.bosspilot.core.Charged;
 import com.codex.bosspilot.core.ChargeBook;
 import com.codex.bosspilot.core.ChargeCheck;
+import com.codex.bosspilot.core.ChestLog;
 import com.codex.bosspilot.core.Chat;
 import com.codex.bosspilot.core.Debrief;
 import com.codex.bosspilot.core.KitCheck;
@@ -52,6 +55,7 @@ import javax.swing.SwingUtilities;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.HitsplatID;
 import net.runelite.api.Client;
+import net.runelite.api.GameObject;
 import net.runelite.api.GameState;
 import net.runelite.api.Item;
 import net.runelite.api.ItemComposition;
@@ -65,6 +69,8 @@ import net.runelite.api.WorldType;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ActorDeath;
 import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.GameObjectDespawned;
+import net.runelite.api.events.GameObjectSpawned;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
@@ -134,6 +140,20 @@ public class CodexBossPilotPlugin extends Plugin
 	private static final String[] PRAYER_POTIONS = {"Prayer potion", "Super restore", "Sanfew serum"};
 	/** OSRS Wiki, Inventory: "A player's backpack inventory can hold up to 28 items". */
 	static final int INVENTORY_SLOTS = 28;
+	/** The Barrows above ground and the crypts and tunnels below, by map region (RuneLite's Barrows plugin: BARROWS_REGION_ID, CRYPT_REGION_ID). */
+	static final int BARROWS_REGION = 14131;
+	static final int CRYPT_REGION = 14231;
+	/** The crypt with the tunnel this run, once found, saved per account so a relog keeps it. */
+	static final String TUNNEL_KEY = "barrowsTunnel";
+	/** The game's prompt on the sarcophagus that hides the tunnel (OSRS Wiki, Poll 75 blog: "You've found a hidden tunnel"). */
+	static final String TUNNEL_PROMPT = "hidden tunnel";
+	/** How long the chest count and the chest's contents may arrive apart and still be one chest. */
+	static final int CHEST_TICKS = 10;
+	/** The varbits of the six brothers, in Barrows.Brother order. */
+	private static final int[] BROTHER_VARBITS = {
+		VarbitID.BARROWS_KILLED_AHRIM, VarbitID.BARROWS_KILLED_DHAROK, VarbitID.BARROWS_KILLED_GUTHAN,
+		VarbitID.BARROWS_KILLED_KARIL, VarbitID.BARROWS_KILLED_TORAG, VarbitID.BARROWS_KILLED_VERAC,
+	};
 
 	@Inject
 	private Client client;
@@ -190,6 +210,26 @@ public class CodexBossPilotPlugin extends Plugin
 	private Boss nearby;
 	private String selected;
 	private boolean warned;
+
+	// ---- Barrows ----
+	/** The player's own Barrows chests. */
+	private ChestLog chestLog = new ChestLog();
+	/** The crypt with the tunnel this run, or null until found. */
+	private Barrows.Brother tunnel;
+	/** The stairs and sarcophagi of the crypts loaded now, where they stand. */
+	private final Map<WorldPoint, Barrows.Brother> cryptObjects = new HashMap<>();
+	/** The brothers and levels of the run under way, kept as the game clears them when the chest opens. */
+	private Set<Barrows.Brother> runKilled = Collections.emptySet();
+	private int runLevels;
+	/** A chest being put together from the chest count message and the reward's contents. */
+	private int chestKc = -1;
+	private List<String> chestItems;
+	private long chestValue = -1;
+	private int chestWait = -1;
+	/** When the last chest of this trip was opened, to time the next run. */
+	private long lastChestAt;
+	/** After a chest, the run's varbits are the old run's until the game clears them. */
+	private boolean runCleared;
 
 	/** Names of item ids, looked up once. Client thread only. */
 	private final Map<Integer, String> names = new HashMap<>();
@@ -253,6 +293,7 @@ public class CodexBossPilotPlugin extends Plugin
 		panel = null;
 		tracker.abandon();
 		names.clear();
+		cryptObjects.clear();
 		setups = Collections.emptyMap();
 		setupsKey = null;
 		review = null;
@@ -265,6 +306,7 @@ public class CodexBossPilotPlugin extends Plugin
 	{
 		ticks++;
 		nearby = findNearby();
+		readBarrows();
 		Stock pack = carried;
 		tracker.observe(nearby, pack.foodHeal(), pack.doses(PRAYER_POTIONS), freeSlots(), System.currentTimeMillis());
 		Trip on = tracker.current();
@@ -288,6 +330,10 @@ public class CodexBossPilotPlugin extends Plugin
 	public void onGameStateChanged(GameStateChanged event)
 	{
 		GameState state = event.getGameState();
+		if (state == GameState.LOADING)
+		{
+			cryptObjects.clear();
+		}
 		if (state == GameState.LOGIN_SCREEN || state == GameState.HOPPING)
 		{
 			tracker.end(state == GameState.HOPPING ? Debrief.Cause.HOPPED : Debrief.Cause.LOGGED_OUT);
@@ -326,7 +372,7 @@ public class CodexBossPilotPlugin extends Plugin
 	public void onConfigChanged(ConfigChanged event)
 	{
 		if (CodexBossPilotConfig.GROUP.equals(event.getGroup()) && !Logbook.KEY.equals(event.getKey()) && !BANK_KEY.equals(event.getKey())
-			&& !ChargeBook.KEY.equals(event.getKey()))
+			&& !ChargeBook.KEY.equals(event.getKey()) && !ChestLog.KEY.equals(event.getKey()) && !TUNNEL_KEY.equals(event.getKey()))
 		{
 			if ("boost".equals(event.getKey()))
 			{
@@ -348,6 +394,32 @@ public class CodexBossPilotPlugin extends Plugin
 		else if (id == InventoryID.INV || id == InventoryID.WORN)
 		{
 			readCarried();
+		}
+		else if (id == InventoryID.TRAIL_REWARDINV && region() == CRYPT_REGION)
+		{
+			// The Barrows chest's reward; clue caskets share this container, but not this place.
+			readChest(event.getItemContainer());
+		}
+	}
+
+	@Subscribe
+	public void onGameObjectSpawned(GameObjectSpawned event)
+	{
+		GameObject o = event.getGameObject();
+		Barrows.Brother b = Barrows.Brother.byObject(o.getId());
+		if (b != null)
+		{
+			cryptObjects.put(o.getWorldLocation(), b);
+		}
+	}
+
+	@Subscribe
+	public void onGameObjectDespawned(GameObjectDespawned event)
+	{
+		GameObject o = event.getGameObject();
+		if (Barrows.Brother.byObject(o.getId()) != null)
+		{
+			cryptObjects.remove(o.getWorldLocation());
 		}
 	}
 
@@ -371,6 +443,11 @@ public class CodexBossPilotPlugin extends Plugin
 			if (boss != null)
 			{
 				logbook.noteKc(boss, kc.count);
+				if (boss == Bosses.BARROWS)
+				{
+					chestKc = kc.count;
+					chestWait = chestWait < 0 ? 0 : chestWait;
+				}
 				tracker.kill(boss, now);
 				chargesKill(boss);
 				saveLogbook();
@@ -406,7 +483,9 @@ public class CodexBossPilotPlugin extends Plugin
 	{
 		// Chest loot, such as the Barrows chest, comes as an event rather than an NPC drop.
 		Trip t = tracker.current();
-		if (t != null && t.getBoss().getLootEvent() != null && t.getBoss().getLootEvent().equalsIgnoreCase(event.getName()))
+		// The Barrows chest is read from its reward by the chest log, which adds it to the trip.
+		if (t != null && t.getBoss() != Bosses.BARROWS && t.getBoss().getLootEvent() != null
+			&& t.getBoss().getLootEvent().equalsIgnoreCase(event.getName()))
 		{
 			tracker.loot(t.getBoss(), value(event.getItems()), System.currentTimeMillis());
 		}
@@ -639,6 +718,12 @@ public class CodexBossPilotPlugin extends Plugin
 			return null;
 		}
 		WorldPoint at = me.getWorldLocation();
+		int region = at.getRegionID();
+		if (region == BARROWS_REGION || region == CRYPT_REGION)
+		{
+			// Barrows is a run through the mounds, crypts and tunnels, not one fight in sight.
+			return Bosses.BARROWS;
+		}
 		for (NPC npc : client.getTopLevelWorldView().npcs())
 		{
 			if (npc == null || npc.getName() == null)
@@ -652,6 +737,220 @@ public class CodexBossPilotPlugin extends Plugin
 			}
 		}
 		return null;
+	}
+
+	// ---- Barrows ----
+
+	/** The map region the player stands in, or -1. */
+	private int region()
+	{
+		Player me = client.getLocalPlayer();
+		return me == null || client.getGameState() != GameState.LOGGED_IN ? -1 : me.getWorldLocation().getRegionID();
+	}
+
+	/**
+	 * Each tick: the brothers and levels of the run so far (kept, since the game clears them when
+	 * the chest opens), the crypt with the tunnel when its prompt shows, and the chest once both
+	 * its count and its contents are in.
+	 */
+	private void readBarrows()
+	{
+		if (client.getGameState() != GameState.LOGGED_IN)
+		{
+			return;
+		}
+		int[] values = new int[BROTHER_VARBITS.length];
+		for (int i = 0; i < values.length; i++)
+		{
+			values[i] = client.getVarbitValue(BROTHER_VARBITS[i]);
+		}
+		Set<Barrows.Brother> killed = Barrows.killed(values);
+		int levels = client.getVarbitValue(VarbitID.BARROWS_KILLED_MONSTER);
+		boolean any = !killed.isEmpty() || levels > 0;
+		if (!any)
+		{
+			runCleared = false;
+		}
+		else if (!runCleared)
+		{
+			runKilled = killed;
+			runLevels = levels;
+		}
+		if (region() == CRYPT_REGION && tunnelPromptShowing())
+		{
+			Barrows.Brother here = cryptHere();
+			if (here != null && here != tunnel)
+			{
+				tunnel = here;
+				configManager.setRSProfileConfiguration(CodexBossPilotConfig.GROUP, TUNNEL_KEY, here.name());
+			}
+		}
+		if (chestWait >= 0)
+		{
+			chestWait++;
+			if (chestKc >= 0 && chestItems != null || chestWait > CHEST_TICKS)
+			{
+				commitChest();
+			}
+		}
+	}
+
+	/** Whether the game is asking about the hidden tunnel, in its message box or its choice. */
+	private boolean tunnelPromptShowing()
+	{
+		for (int id : new int[]{InterfaceID.Messagebox.TEXT, InterfaceID.Chatmenu.OPTIONS})
+		{
+			Widget w = client.getWidget(id);
+			if (w == null || w.isHidden())
+			{
+				continue;
+			}
+			if (mentionsTunnel(w.getText()))
+			{
+				return true;
+			}
+			Widget[] children = w.getDynamicChildren();
+			if (children != null)
+			{
+				for (Widget c : children)
+				{
+					if (c != null && mentionsTunnel(c.getText()))
+					{
+						return true;
+					}
+				}
+			}
+		}
+		return false;
+	}
+
+	static boolean mentionsTunnel(String text)
+	{
+		return text != null && Text.removeTags(text).toLowerCase(java.util.Locale.ROOT).contains(TUNNEL_PROMPT);
+	}
+
+	/** The crypt the player stands in: the brother whose stairs or sarcophagus is nearest. */
+	private Barrows.Brother cryptHere()
+	{
+		Player me = client.getLocalPlayer();
+		if (me == null)
+		{
+			return null;
+		}
+		WorldPoint at = me.getWorldLocation();
+		Barrows.Brother best = null;
+		int bestD = Integer.MAX_VALUE;
+		for (Map.Entry<WorldPoint, Barrows.Brother> e : cryptObjects.entrySet())
+		{
+			if (e.getKey().getPlane() != at.getPlane())
+			{
+				continue;
+			}
+			int d = e.getKey().distanceTo(at);
+			if (d < bestD)
+			{
+				bestD = d;
+				best = e.getValue();
+			}
+		}
+		return best;
+	}
+
+	/** The chest's reward, as the game shows it. */
+	private void readChest(ItemContainer c)
+	{
+		if (c == null)
+		{
+			return;
+		}
+		List<String> items = new ArrayList<>();
+		long worth = 0;
+		boolean any = false;
+		for (Item item : c.getItems())
+		{
+			if (item.getId() < 0 || item.getQuantity() <= 0)
+			{
+				continue;
+			}
+			any = true;
+			items.add(name(item.getId()));
+			worth += (long) itemManager.getItemPrice(item.getId()) * item.getQuantity();
+		}
+		if (!any)
+		{
+			return;
+		}
+		chestItems = items;
+		chestValue = worth;
+		chestWait = chestWait < 0 ? 0 : chestWait;
+	}
+
+	/** Logs the chest, adds it to the trip and starts the next run afresh. */
+	private void commitChest()
+	{
+		long now = System.currentTimeMillis();
+		ChestLog.Chest chest = new ChestLog.Chest();
+		chest.at = now;
+		chest.kc = chestKc;
+		chest.value = chestItems == null ? -1 : chestValue;
+		chest.brothers = runKilled.size();
+		chest.potential = runKilled.isEmpty() && runLevels == 0 ? -1 : Barrows.potential(runLevels, runKilled.size());
+		if (chestItems != null)
+		{
+			chest.pieces.addAll(Barrows.pieces(chestItems));
+		}
+		Trip t = tracker.current();
+		if (t != null && t.getBoss() == Bosses.BARROWS)
+		{
+			long from = Math.max(t.getStart(), lastChestAt);
+			chest.seconds = Math.max(1, (now - from) / 1000);
+			if (chest.value > 0)
+			{
+				tracker.loot(Bosses.BARROWS, chest.value, now);
+			}
+		}
+		chestLog.add(chest);
+		lastChestAt = now;
+		chestKc = -1;
+		chestItems = null;
+		chestValue = -1;
+		chestWait = -1;
+		runKilled = Collections.emptySet();
+		runLevels = 0;
+		runCleared = true;
+		if (tunnel != null)
+		{
+			tunnel = null;
+			configManager.unsetRSProfileConfiguration(CodexBossPilotConfig.GROUP, TUNNEL_KEY);
+		}
+		if (configManager.getRSProfileKey() != null)
+		{
+			configManager.setRSProfileConfiguration(CodexBossPilotConfig.GROUP, ChestLog.KEY, chestLog.toJson(gson));
+		}
+	}
+
+	/** Where the Barrows run stands, with the chest log and the pieces not yet owned. */
+	private BarrowsRun barrowsRun()
+	{
+		List<String> owned = new ArrayList<>(bankStock.asMap().keySet());
+		owned.addAll(carried.asMap().keySet());
+		return new BarrowsRun(runKilled, runLevels, tunnel, config.barrowsAim(), chestLog, chestLog.missing(owned));
+	}
+
+	static Barrows.Brother brother(String name)
+	{
+		if (name == null || name.isEmpty())
+		{
+			return null;
+		}
+		try
+		{
+			return Barrows.Brother.valueOf(name);
+		}
+		catch (IllegalArgumentException e)
+		{
+			return null;
+		}
 	}
 
 	private void readQuests()
@@ -786,6 +1085,14 @@ public class CodexBossPilotPlugin extends Plugin
 	{
 		logbook = Logbook.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, Logbook.KEY));
 		charges = ChargeBook.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, ChargeBook.KEY));
+		chestLog = ChestLog.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, ChestLog.KEY));
+		tunnel = brother(configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, TUNNEL_KEY));
+		runKilled = Collections.emptySet();
+		runLevels = 0;
+		chestKc = -1;
+		chestItems = null;
+		chestWait = -1;
+		lastChestAt = 0;
 		BankSnapshot own = BankSnapshot.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, BANK_KEY));
 		BankSnapshot steward = own != null ? null
 			: BankSnapshot.parse(gson, configManager.getRSProfileConfiguration(STEWARD_GROUP, STEWARD_KEY));
@@ -941,7 +1248,9 @@ public class CodexBossPilotPlugin extends Plugin
 
 		List<Reminders.Reminder> reminders = loggedIn ? reminders(trip) : Collections.emptyList();
 		String tripNote = trip == null ? "" : note(trip.getBoss());
-		tripPlaque.show(loggedIn && trip != null && config.tripPlaque() ? Plaques.trip(trip, outlook, logbook, reminders, tripNote, now) : null);
+		BarrowsRun barrows = loggedIn ? barrowsRun() : null;
+		tripPlaque.show(loggedIn && trip != null && config.tripPlaque()
+			? Plaques.trip(trip, outlook, logbook, reminders, tripNote, now, trip.getBoss() == Bosses.BARROWS ? barrows : null) : null);
 		List<ChargeCheck.Line> nextCharges = !loggedIn || next == null || !config.charges() ? Collections.emptyList()
 			: chargeLines(next.getBoss(), setups.getOrDefault(next.getBoss().getKey(), Collections.emptyList()), null,
 				ChargeCheck.kitKills(next.getBoss(), logbook.rates(next.getBoss())));
@@ -960,7 +1269,8 @@ public class CodexBossPilotPlugin extends Plugin
 			: chargeLines(shown.getBoss(), shownSetups, null, ChargeCheck.kitKills(shown.getBoss(), logbook.rates(shown.getBoss())));
 		View view = new View(loggedIn, picks, next, shown, shownSetups, setupsPending && shownSetups.isEmpty(), trip, outlook, logbook,
 			review, in.aim, bankSeenAt, now, reminders, shown == null ? "" : note(shown.getBoss()))
-			.withCharges(shownCharges, tripCharges);
+			.withCharges(shownCharges, tripCharges)
+			.withBarrows(barrows);
 		SwingUtilities.invokeLater(() -> p.update(view));
 	}
 

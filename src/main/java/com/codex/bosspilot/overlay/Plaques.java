@@ -1,5 +1,7 @@
 package com.codex.bosspilot.overlay;
 
+import com.codex.bosspilot.core.Barrows;
+import com.codex.bosspilot.core.BarrowsRun;
 import com.codex.bosspilot.core.ChargeCheck;
 import com.codex.bosspilot.core.Format;
 import com.codex.bosspilot.core.KitCheck;
@@ -30,6 +32,16 @@ public final class Plaques
 
 	public static Plaque.Content trip(Trip trip, Outlook outlook, Logbook book, List<Reminders.Reminder> reminders, String note, long now)
 	{
+		return trip(trip, outlook, book, reminders, note, now, null);
+	}
+
+	/**
+	 * The trip plaque; on a Barrows trip, with where the run stands: the brothers down, the crypt
+	 * with the tunnel and the tunnel kills to the potential aimed for.
+	 */
+	public static Plaque.Content trip(Trip trip, Outlook outlook, Logbook book, List<Reminders.Reminder> reminders, String note, long now,
+		BarrowsRun barrows)
+	{
 		List<Plaque.Line> lines = new ArrayList<>();
 		boolean urgent = false;
 		List<Reminders.Reminder> sorted = new ArrayList<>(reminders);
@@ -39,8 +51,13 @@ public final class Plaques
 			lines.add(new Plaque.Line(r.getText(), r.isUrgent() ? Theme.EMBER : Theme.GOLD));
 			urgent |= r.isUrgent();
 		}
-		String kills = Format.plural(trip.getKills(), "kill", "kills") + " in " + Format.clock(trip.elapsed(now) / 1000.0);
+		String kills = (barrows != null ? Format.plural(trip.getKills(), "chest", "chests") : Format.plural(trip.getKills(), "kill", "kills"))
+			+ " in " + Format.clock(trip.elapsed(now) / 1000.0);
 		lines.add(new Plaque.Line(kills, Theme.TEXT, trip.getLoot() > 0 ? Format.number(trip.getLoot()) + " loot" : null));
+		if (barrows != null)
+		{
+			lines.addAll(barrows(barrows));
+		}
 		if (!trip.getKillSeconds().isEmpty())
 		{
 			Logbook.Entry e = book.peek(trip.getBoss());
@@ -57,6 +74,22 @@ public final class Plaques
 			lines.add(new Plaque.Line("Your note: " + cut(note.replace('\n', ' '), NOTE_CHARS), Theme.TEXT_MUTED));
 		}
 		return new Plaque.Content("BOSS PILOT: ON A TRIP", trip.getBoss().getName(), urgent ? Theme.EMBER : color(outlook), lines);
+	}
+
+	/** The Barrows run on the trip plaque. */
+	static List<Plaque.Line> barrows(BarrowsRun run)
+	{
+		List<Plaque.Line> lines = new ArrayList<>();
+		lines.add(new Plaque.Line(run.brothersShort(), run.getKilled().size() == 6 ? Theme.GREEN : Theme.TEXT, "potential " + run.potential()));
+		lines.add(new Plaque.Line(run.tunnelText(), run.getTunnel() == null ? Theme.TEXT_MUTED : Theme.GOLD));
+		String plan = run.planText();
+		if (plan != null)
+		{
+			Barrows.Plan p = run.getPlan();
+			lines.add(new Plaque.Line(plan, p.reached() ? Theme.GREEN : Theme.TEAL,
+				p.reached() || p.getKills().isEmpty() ? null : "+" + p.getAdds() + " = " + p.result()));
+		}
+		return lines;
 	}
 
 	static String cut(String text, int max)

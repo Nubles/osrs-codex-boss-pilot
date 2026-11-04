@@ -1,7 +1,9 @@
 package com.codex.bosspilot.ui;
 
 import com.codex.bosspilot.core.Aim;
+import com.codex.bosspilot.core.BarrowsRun;
 import com.codex.bosspilot.core.Boss;
+import com.codex.bosspilot.core.Bosses;
 import com.codex.bosspilot.core.Format;
 import com.codex.bosspilot.core.ChargeCheck;
 import com.codex.bosspilot.core.KitCheck;
@@ -372,6 +374,12 @@ public class BossPanel extends PluginPanel
 			}
 		}
 
+		BarrowsRun barrows = view.getBarrows();
+		if (b == Bosses.BARROWS && barrows != null)
+		{
+			barrows(list, barrows, false);
+		}
+
 		if (!b.getBriefing().isEmpty())
 		{
 			list.space(2);
@@ -638,13 +646,17 @@ public class BossPanel extends PluginPanel
 		{
 			best = best <= 0 ? e.best : Math.min(best, e.best);
 		}
-		grid.add(new StatTile("Kills", String.valueOf(t.getKills()), true));
+		grid.add(new StatTile(t.getBoss() == Bosses.BARROWS ? "Chests" : "Kills", String.valueOf(t.getKills()), true));
 		grid.add(new StatTile("Loot", Format.number(t.getLoot()), t.getLoot() > 0));
 		grid.add(new StatTile("Average", t.getKillSeconds().isEmpty() ? "-" : Format.clock(t.averageKill()), !t.getKillSeconds().isEmpty()));
 		grid.add(new StatTile("Best", best > 0 ? Format.clock(best) : "-", best > 0));
 		grid.add(new StatTile("Food", t.getFoodNow() < 0 ? "-" : t.getFoodNow() + " hp", t.getFoodNow() > 0));
 		grid.add(new StatTile("Prayer", t.getDosesNow() < 0 ? "-" : t.getDosesNow() + " doses", t.getDosesNow() > 0));
 		list.add(grid);
+		if (t.getBoss() == Bosses.BARROWS && view.getBarrows() != null)
+		{
+			barrows(list, view.getBarrows(), true);
+		}
 		if (!view.getTripCharges().isEmpty())
 		{
 			list.space(2);
@@ -669,6 +681,26 @@ public class BossPanel extends PluginPanel
 			list.add(note(t.getDeaths() == 1 ? "You died once on this trip." : "You died " + t.getDeaths() + " times on this trip."));
 		}
 		return list;
+	}
+
+	/** Barrows: the run under way, the player's own chests and the set. */
+	private void barrows(StackPanel list, BarrowsRun r, boolean onTrip)
+	{
+		if (onTrip || r.started() || r.getTunnel() != null)
+		{
+			list.space(2);
+			list.add(new SectionHeader("This run", r.getKilled().size() + " of 6"));
+			list.add(BarrowsCard.run(r, TEXT));
+		}
+		list.space(2);
+		list.add(new SectionHeader("Your chests", r.getLog().isEmpty() ? null : "KC " + Format.number(r.getLog().chests)));
+		list.add(BarrowsCard.chests(r, view.logbook.rates(Bosses.BARROWS), TEXT));
+		if (!onTrip)
+		{
+			list.space(2);
+			list.add(new SectionHeader("The set", (24 - r.getMissing().size()) + " of 24"));
+			list.add(BarrowsCard.set(r, TEXT));
+		}
 	}
 
 	private Color outlookColor()

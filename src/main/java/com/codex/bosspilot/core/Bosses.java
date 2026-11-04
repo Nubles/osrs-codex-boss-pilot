@@ -75,7 +75,7 @@ public final class Bosses
 		.attacks("Ahrim: magic. Karil: ranged. Dharok, Guthan, Torag and Verac: melee")
 		.notes("Six brothers, one in each crypt. Dig with a spade on a mound to go in.",
 			"The chest is in the tunnels below; one brother waits in the crypt that leads there.",
-			"Getting to Morytania needs Priest in Peril.")
+			"Getting to Morytania needs Priest in Peril, and digging into the crypts needs His Faithful Servants started.")
 		.npcs("Ahrim the Blighted", "Dharok the Wretched", "Guthan the Infested", "Karil the Tainted",
 			"Torag the Corrupted", "Verac the Defiled")
 		.kc("Barrows", "Barrows chest")

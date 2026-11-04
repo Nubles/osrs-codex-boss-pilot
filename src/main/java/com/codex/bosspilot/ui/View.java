@@ -1,6 +1,7 @@
 package com.codex.bosspilot.ui;
 
 import com.codex.bosspilot.core.Aim;
+import com.codex.bosspilot.core.BarrowsRun;
 import com.codex.bosspilot.core.ChargeCheck;
 import com.codex.bosspilot.core.Logbook;
 import com.codex.bosspilot.core.Outlook;
@@ -38,6 +39,7 @@ public final class View
 	/** The charged items for the selected boss, and for the trip under way. */
 	private List<ChargeCheck.Line> charges = Collections.emptyList();
 	private List<ChargeCheck.Line> tripCharges = Collections.emptyList();
+	private BarrowsRun barrows;
 
 	public View(boolean loggedIn, List<Ranker.Pick> picks, Ranker.Pick next, Ranker.Pick selected, List<Setup> setups,
 		boolean setupsPending, Trip trip, Outlook outlook, Logbook logbook, Review review, Aim aim, long bankSeenAt, long now,
@@ -66,6 +68,19 @@ public final class View
 		this.charges = charges == null ? Collections.emptyList() : charges;
 		this.tripCharges = tripCharges == null ? Collections.emptyList() : tripCharges;
 		return this;
+	}
+
+	/** The same view with where the Barrows run stands and the chest log; null leaves it out. */
+	public View withBarrows(BarrowsRun barrows)
+	{
+		this.barrows = barrows;
+		return this;
+	}
+
+	/** The Barrows run and chest log, or null. */
+	public BarrowsRun getBarrows()
+	{
+		return barrows;
 	}
 
 	public List<ChargeCheck.Line> getCharges()
