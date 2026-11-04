@@ -1,5 +1,7 @@
 package com.codex.bosspilot.core;
 
+import java.util.List;
+
 /**
  * A look back at a finished trip: the rates, and one thing to do differently next time, worked
  * out only from the player's own kills, supplies and loot.
@@ -15,13 +17,15 @@ public final class Review
 	private final Logbook.TripRecord trip;
 	private final double killsLeft;
 	private final String advice;
+	private final Debrief debrief;
 
-	private Review(Boss boss, Logbook.TripRecord trip, double killsLeft, String advice)
+	private Review(Boss boss, Logbook.TripRecord trip, double killsLeft, String advice, Debrief debrief)
 	{
 		this.boss = boss;
 		this.trip = trip;
 		this.killsLeft = killsLeft;
 		this.advice = advice;
+		this.debrief = debrief;
 	}
 
 	/**
@@ -29,7 +33,23 @@ public final class Review
 	 */
 	public static Review of(Boss boss, Logbook.TripRecord trip, double left)
 	{
-		return new Review(boss, trip, left, advise(trip, left));
+		return new Review(boss, trip, left, advise(trip, left), null);
+	}
+
+	/**
+	 * The review with its debrief: why the trip ended and how it compares with the trips before it.
+	 *
+	 * @param earlier the trips kept for this boss before this one, oldest first
+	 */
+	public static Review of(Boss boss, Logbook.TripRecord trip, List<Logbook.TripRecord> earlier)
+	{
+		return new Review(boss, trip, trip.killsLeft, advise(trip, trip.killsLeft), Debrief.of(trip, earlier));
+	}
+
+	/** Why the trip ended and how it went next to your best, or null on a review made without one. */
+	public Debrief getDebrief()
+	{
+		return debrief;
 	}
 
 	static String advise(Logbook.TripRecord t, double left)
@@ -46,11 +66,23 @@ public final class Review
 				+ " Read the briefing on the Prepare tab, and bring more food or the best setup there.";
 		}
 		double perKill = (double) t.foodUsed / t.kills;
+		double dosesPerKill = (double) t.dosesUsed / t.kills;
+		if (left >= 0 && left < 1 && Debrief.Ending.OUT_OF_PRAYER.name().equals(t.ended) && dosesPerKill > 0)
+		{
+			long potions = Math.max(1, Math.round(Math.ceil(dosesPerKill * 2 / Debrief.DOSES_A_POTION)));
+			return "Your prayer ran out after " + plural(t.kills, "kill", "kills") + ". About "
+				+ plural(potions, "more prayer potion", "more prayer potions") + " would last two more kills.";
+		}
 		if (left >= 0 && left < 1 && perKill > 0)
 		{
 			long sharks = Math.max(1, Math.round(Math.ceil(perKill * 2 / SHARK)));
 			return "You ran low after " + plural(t.kills, "kill", "kills") + ". About " + plural(sharks, "more shark", "more sharks")
 				+ " would last two more kills.";
+		}
+		if (left >= SPARE && Debrief.Ending.BAG_FULL.name().equals(t.ended))
+		{
+			return "Your bag filled up with supplies for about " + (long) Math.floor(left)
+				+ " more kills still in it. Bring less, and keep the room for loot.";
 		}
 		if (left >= SPARE)
 		{

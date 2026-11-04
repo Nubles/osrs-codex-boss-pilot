@@ -8,6 +8,7 @@ It is part of the **Codex** suite, alongside [Codex Gear Roadmap](https://github
   <img src="docs/screenshots/next.png" width="225" alt="The next boss and every other boss with what stands in the way">
   <img src="docs/screenshots/prepare-zulrah.png" width="225" alt="Requirements, your best setup, the kit and the briefing for Zulrah">
   <img src="docs/screenshots/trip.png" width="225" alt="A trip to Sarachnis under way">
+  <img src="docs/screenshots/debrief.png" width="225" alt="The debrief of a trip that ran out of prayer">
 </p>
 
 ## What it does
@@ -18,7 +19,7 @@ It is part of the **Codex** suite, alongside [Codex Gear Roadmap](https://github
 - **The briefing.** For every boss, its main mechanics and the usual answer to each, as a guide would sum them up, to read on the Prepare tab before you go. Under it, a box for your own notes, such as the Ground Markers set to load, which the trip plaque repeats until the first kill.
 - **On the trip.** A plaque with kills, the trip clock, last, average and best kill time (from the game's own fight durations), loot so far, and how many more kills your food and prayer will last at the rate you are using them, or at your past trips' rate before the first kill. When there is not enough for another kill it says to bank after this one, and can send one notification.
 - **Reminders about you.** While at a boss: eat when your hitpoints fall under the share you set, drink when prayer runs low, a combat boost that has worn off, an antifire about to end or not drunk at a dragon, and a must-have item you came without. They look only at you, never at the boss.
-- **After the trip.** Kills and loot an hour, the damage you took and your biggest hit, and one piece of advice from your own numbers: you ran low after five kills and six more sharks would last two more, or you came home with enough for four more kills, so stay longer or bring less.
+- **The trip debrief.** When a trip ends, a seal says why: **died**, **out of food**, **out of prayer**, **bag full**, logged out, hopped, moved on to another boss, or left with supplies for so many more kills. What you carried is read the last time the boss was in sight, so restocking at the bank afterwards is not counted as used. Then the trip set against your best one kept for that boss (kills and loot an hour, food and prayer a kill, deaths, kills, with an arrow for each line that moved and its colour for whether that was for the better), a strip of your recent trips with this one lit, the best crowned and the forced endings marked, and its place ("2nd best of 8 trips by loot an hour"). When most of your recent trips here end the same way, it says so and what to bring: "3 of your last 6 trips here ran out of prayer. About 2 more prayer potions would last two more kills." Damage taken, biggest hit and one piece of advice from your own numbers follow.
 - **The log.** Kill counts, best kills, kills and loot an hour for every boss you have fought, kept per account on your computer.
 
 <p align="center">
@@ -44,7 +45,7 @@ Boss Pilot plans trips. During a fight it never reads what a boss is doing: no a
 ./gradlew run     # launch RuneLite with the plugin loaded
 ```
 
-The boss data, kit checks, ranking and trip tracking (`core/`) are plain Java with unit tests. The combat formulas (`combat/`, `data/`) are shared with Codex Gear Roadmap. The panel and plaques are in `ui/` and `overlay/`.
+The boss data, kit checks, ranking, trip tracking and the trip debrief (`core/`) are plain Java with unit tests. Replays in `src/test/resources/replays` play whole trips against the plugin, including how a trip ended. The combat formulas (`combat/`, `data/`) are shared with Codex Gear Roadmap. The panel and plaques are in `ui/` and `overlay/`.
 
 ## Licence
 

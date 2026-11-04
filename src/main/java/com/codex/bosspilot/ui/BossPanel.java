@@ -581,7 +581,7 @@ public class BossPanel extends PluginPanel
 			if (view.review != null)
 			{
 				list.space(2);
-				list.add(new SectionHeader("Last trip", view.review.getBoss().getName()));
+				list.add(new SectionHeader("Trip debrief", view.review.getBoss().getName()));
 				list.add(review(view.review));
 			}
 			return list;
@@ -665,23 +665,7 @@ public class BossPanel extends PluginPanel
 
 	private static JComponent review(Review r)
 	{
-		Logbook.TripRecord t = r.getTrip();
-		Card card = new Card(new BorderLayout(0, 6)).accent(Theme.GOLD);
-		StackPanel body = new StackPanel(3, 0);
-		body.add(Ui.wrapped(Format.plural(t.kills, "kill", "kills") + " in " + Format.clock(t.minutes() * 60)
-			+ (t.loot > 0 ? ", " + Format.number(t.loot) + " loot" : ""), Theme.body(), Theme.TEXT, TEXT));
-		if (t.kills > 0 && t.minutes() > 0)
-		{
-			body.add(Ui.wrapped(String.format(java.util.Locale.ROOT, "%.1f kills an hour", r.killsPerHour())
-				+ (t.loot > 0 ? ", " + Format.number(r.lootPerHour()) + " loot an hour" : ""), Theme.small(), Theme.TEXT_MUTED, TEXT));
-		}
-		if (r.damageText() != null)
-		{
-			body.add(Ui.wrapped(r.damageText(), Theme.small(), Theme.TEXT_MUTED, TEXT));
-		}
-		body.add(Ui.wrapped(r.getAdvice(), Theme.small(), Theme.TEAL, TEXT));
-		card.add(body, BorderLayout.CENTER);
-		return card;
+		return DebriefCard.of(r, TEXT);
 	}
 
 	// ---- Log ----
@@ -691,7 +675,7 @@ public class BossPanel extends PluginPanel
 		StackPanel list = new StackPanel(6, 8);
 		if (view.review != null)
 		{
-			list.add(new SectionHeader("Last trip", view.review.getBoss().getName()));
+			list.add(new SectionHeader("Trip debrief", view.review.getBoss().getName()));
 			list.add(review(view.review));
 			list.space(2);
 		}

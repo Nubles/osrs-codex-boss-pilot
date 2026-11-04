@@ -40,6 +40,16 @@ public final class Trip
 	private boolean lastFromGame;
 	/** Whether the last kill holds a time read off the clock, which the game's own may replace. */
 	private boolean lastClockTimed;
+	/** Whether the player died since the last kill. */
+	private boolean diedSinceKill;
+	/** What the player carried the last time the boss was in sight, or -1: what they left with. */
+	private long leaveFood = -1;
+	private long leaveDoses = -1;
+	private int leaveFree = -1;
+	private long leaveFoodUsed;
+	private long leaveDosesUsed;
+	/** Why the tracker ended the trip, set as it ends. */
+	private Debrief.Cause cause = Debrief.Cause.TIMED_OUT;
 	/** A fight duration this soon after a kill count belongs to that kill. */
 	static final long SAME_KILL_MS = 3000;
 
@@ -59,6 +69,31 @@ public final class Trip
 	/** The supplies carried now; any drop since the last look counts as used. */
 	void carrying(long food, long doses)
 	{
+		carry(food, doses);
+	}
+
+	/**
+	 * The supplies and free inventory slots carried now. When the boss is in sight this tick,
+	 * they are also what the player will have left with if it is the last time it is seen; what
+	 * goes after that (a bank deposit on the way home, say) is not counted as used on the trip.
+	 *
+	 * @param free free inventory slots, or -1 when not known
+	 */
+	void carrying(long food, long doses, int free, long now)
+	{
+		carry(food, doses);
+		if (now == lastSeen)
+		{
+			leaveFood = food;
+			leaveDoses = doses;
+			leaveFree = free;
+			leaveFoodUsed = foodUsed;
+			leaveDosesUsed = dosesUsed;
+		}
+	}
+
+	private void carry(long food, long doses)
+	{
 		if (foodNow >= 0 && food < foodNow)
 		{
 			foodUsed += foodNow - food;
@@ -75,6 +110,7 @@ public final class Trip
 	void kill(long now, double gameSeconds)
 	{
 		kills++;
+		diedSinceKill = false;
 		lastFromGame = gameSeconds > 0 || pendingSeconds > 0;
 		double seconds = gameSeconds > 0 ? gameSeconds : pendingSeconds > 0 ? pendingSeconds : (now - lastKillAt) / 1000.0;
 		pendingSeconds = 0;
@@ -124,6 +160,59 @@ public final class Trip
 	void death()
 	{
 		deaths++;
+		diedSinceKill = true;
+	}
+
+	void endedBy(Debrief.Cause cause)
+	{
+		this.cause = cause;
+	}
+
+	public Debrief.Cause getCause()
+	{
+		return cause;
+	}
+
+	/** Whether a death came after the last kill, so it is what ended the trip. */
+	public boolean diedLast()
+	{
+		return diedSinceKill;
+	}
+
+	/** Free inventory slots when the boss was last in sight, or -1. */
+	public int getLeaveFree()
+	{
+		return leaveFree;
+	}
+
+	/** Hitpoints of food carried when the boss was last in sight, or -1. */
+	public long getLeaveFood()
+	{
+		return leaveFood;
+	}
+
+	public long getLeaveDoses()
+	{
+		return leaveDoses;
+	}
+
+	/**
+	 * How many more kills the food and prayer left with would have lasted, at this trip's own use
+	 * a kill, and which ran short first; null when not known.
+	 */
+	public Debrief.Left left()
+	{
+		if (kills <= 0 || leaveFood < 0)
+		{
+			return null;
+		}
+		double byFood = leaveFoodUsed > 0 ? leaveFood / ((double) leaveFoodUsed / kills) : Double.POSITIVE_INFINITY;
+		double byDoses = leaveDosesUsed > 0 ? leaveDoses / ((double) leaveDosesUsed / kills) : Double.POSITIVE_INFINITY;
+		if (Double.isInfinite(byFood) && Double.isInfinite(byDoses))
+		{
+			return null;
+		}
+		return byFood <= byDoses ? new Debrief.Left(byFood, false) : new Debrief.Left(byDoses, true);
 	}
 
 	/** Damage the player took. */
@@ -270,11 +359,14 @@ public final class Trip
 		r.kills = kills;
 		r.loot = loot;
 		r.deaths = deaths;
-		r.foodUsed = foodUsed;
-		r.dosesUsed = dosesUsed;
+		r.foodUsed = leaveFood >= 0 ? leaveFoodUsed : foodUsed;
+		r.dosesUsed = leaveFood >= 0 ? leaveDosesUsed : dosesUsed;
 		r.bestKill = bestKill();
 		r.damage = damage;
 		r.biggestHit = biggestHit;
+		Debrief.Left left = left();
+		r.killsLeft = left == null ? -1 : left.kills;
+		r.ended = Debrief.ending(this, left).name();
 		return r;
 	}
 }

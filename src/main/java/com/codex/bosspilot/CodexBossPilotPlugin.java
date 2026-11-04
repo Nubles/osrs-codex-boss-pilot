@@ -10,6 +10,7 @@ import com.codex.bosspilot.core.BankSnapshot;
 import com.codex.bosspilot.core.Boss;
 import com.codex.bosspilot.core.Bosses;
 import com.codex.bosspilot.core.Chat;
+import com.codex.bosspilot.core.Debrief;
 import com.codex.bosspilot.core.KitCheck;
 import com.codex.bosspilot.core.Logbook;
 import com.codex.bosspilot.core.Outlook;
@@ -128,6 +129,8 @@ public class CodexBossPilotPlugin extends Plugin
 		Skill.SLAYER,
 	};
 	private static final String[] PRAYER_POTIONS = {"Prayer potion", "Super restore", "Sanfew serum"};
+	/** OSRS Wiki, Inventory: "A player's backpack inventory can hold up to 28 items". */
+	static final int INVENTORY_SLOTS = 28;
 
 	@Inject
 	private Client client;
@@ -256,7 +259,7 @@ public class CodexBossPilotPlugin extends Plugin
 		ticks++;
 		nearby = findNearby();
 		Stock pack = carried;
-		tracker.observe(nearby, pack.foodHeal(), pack.doses(PRAYER_POTIONS), System.currentTimeMillis());
+		tracker.observe(nearby, pack.foodHeal(), pack.doses(PRAYER_POTIONS), freeSlots(), System.currentTimeMillis());
 		Trip on = tracker.current();
 		if (on != null)
 		{
@@ -280,7 +283,7 @@ public class CodexBossPilotPlugin extends Plugin
 		GameState state = event.getGameState();
 		if (state == GameState.LOGIN_SCREEN || state == GameState.HOPPING)
 		{
-			tracker.end();
+			tracker.end(state == GameState.HOPPING ? Debrief.Cause.HOPPED : Debrief.Cause.LOGGED_OUT);
 			saveFinished();
 			nearby = null;
 			evaluate();
@@ -526,6 +529,25 @@ public class CodexBossPilotPlugin extends Plugin
 			}
 		}
 		quests = done;
+	}
+
+	/** Free inventory slots, or -1 before the inventory is loaded; read for "bag full" in the trip debrief. */
+	private int freeSlots()
+	{
+		ItemContainer c = client.getItemContainer(InventoryID.INV);
+		if (c == null)
+		{
+			return -1;
+		}
+		int used = 0;
+		for (Item item : c.getItems())
+		{
+			if (item.getId() >= 0 && item.getQuantity() > 0)
+			{
+				used++;
+			}
+		}
+		return Math.max(0, INVENTORY_SLOTS - used);
 	}
 
 	/** What the player carries and wears, by name for the kit and by id for the setups. */
@@ -889,8 +911,8 @@ public class CodexBossPilotPlugin extends Plugin
 			return;
 		}
 		Logbook.TripRecord record = done.record();
-		Outlook end = Outlook.of(done, null);
-		review = Review.of(done.getBoss(), record, end.getKills());
+		Logbook.Entry kept = logbook.peek(done.getBoss());
+		review = Review.of(done.getBoss(), record, kept == null ? Collections.emptyList() : new ArrayList<>(kept.trips));
 		if (record.kills > 0 || record.deaths > 0)
 		{
 			logbook.add(done.getBoss(), record);
