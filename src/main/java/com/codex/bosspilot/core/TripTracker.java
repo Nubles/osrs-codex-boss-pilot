@@ -27,6 +27,17 @@ public final class TripTracker
 	 */
 	public void observe(Boss nearby, long food, long doses, long now)
 	{
+		observe(nearby, food, doses, -1, now);
+	}
+
+	/**
+	 * One look at the world, with the free inventory slots too, so a trip that ends with a full
+	 * bag says so.
+	 *
+	 * @param free free inventory slots, or -1 when not known
+	 */
+	public void observe(Boss nearby, long food, long doses, int free, long now)
+	{
 		if (nearby != null)
 		{
 			begin(nearby, now);
@@ -36,10 +47,10 @@ public final class TripTracker
 		{
 			if (now - trip.getLastSeen() > END_AFTER_MS)
 			{
-				end();
+				end(Debrief.Cause.TIMED_OUT);
 				return;
 			}
-			trip.carrying(food, doses);
+			trip.carrying(food, doses, free, now);
 		}
 	}
 
@@ -96,8 +107,15 @@ public final class TripTracker
 	/** Ends the trip now, as on logging out. */
 	public void end()
 	{
+		end(Debrief.Cause.LOGGED_OUT);
+	}
+
+	/** Ends the trip now, for this reason. */
+	public void end(Debrief.Cause cause)
+	{
 		if (trip != null)
 		{
+			trip.endedBy(cause);
 			finished = trip;
 			trip = null;
 		}
@@ -122,7 +140,7 @@ public final class TripTracker
 	{
 		if (trip != null && trip.getBoss() != boss)
 		{
-			end();
+			end(Debrief.Cause.MOVED_ON);
 		}
 		if (trip == null)
 		{

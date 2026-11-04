@@ -1,0 +1,69 @@
+# The trip debrief says why a trip ended. A Sarachnis trip that runs out of prayer is "Out of
+# prayer" even though the player then logs out; one that fills the bag is "Bag full"; and the
+# potions restocked at the bank after leaving are not counted as used on the trip.
+# Facts: scenes/sarachnis.scene; a prayer potion has 4 doses (oldschool.runescape.wiki/w/Prayer_potion,
+# "4 doses of Prayer restore potion."); the inventory holds 28 items (oldschool.runescape.wiki/w/Inventory,
+# "A player's backpack inventory can hold up to 28 items").
+include /replays/scenes/sarachnis.scene
+watch ending review.debrief.ending
+watch reason review.debrief.reason
+watch doses review.trip.dosesUsed
+item _1DOSEPRAYERRESTORE "Prayer potion(1)"
+item BIG_BONES "Big bones"
+
+npc SARACHNIS Sarachnis 1842 9905 2 level 318 as boss
+tick 2
+expect ending = null
+
+# Two kills, a prayer potion (4 doses) each, and one dose left.
+items INV clear
+items INV SHARK 8
+items INV _4DOSEPRAYERRESTORE 2
+items INV _1DOSEPRAYERRESTORE 1
+chat GAMEMESSAGE "Your Sarachnis kill count is: 52."
+tick 2
+items INV clear
+items INV SHARK 6
+items INV _4DOSEPRAYERRESTORE 1
+items INV _1DOSEPRAYERRESTORE 1
+chat GAMEMESSAGE "Your Sarachnis kill count is: 53."
+tick 2
+items INV clear
+items INV SHARK 6
+items INV _1DOSEPRAYERRESTORE 1
+tick 2
+
+# She is out of sight; at the bank the potions go back in before logging out.
+remove boss
+tick 2
+items INV clear
+items INV SHARK 10
+tick 2
+items INV _4DOSEPRAYERRESTORE 4
+tick 2
+state LOGIN_SCREEN
+tick
+expect ending = OUT_OF_PRAYER
+expect reason = "Out of prayer after 2 kills: what was left would not last another."
+expect doses = 15
+expect saved.logbookV1 ~ OUT_OF_PRAYER     # the ending, saved with the trip
+
+# A second trip that ends with the bag full and supplies to spare.
+state LOGGED_IN
+items INV clear
+items INV SHARK 10
+items INV _4DOSEPRAYERRESTORE 4
+npc SARACHNIS Sarachnis 1842 9905 2 level 318 as boss
+tick 2
+items INV clear
+items INV SHARK 9
+items INV _4DOSEPRAYERRESTORE 4
+items INV BIG_BONES 15
+chat GAMEMESSAGE "Your Sarachnis kill count is: 54."
+tick 2
+remove boss
+tick 2
+state LOGIN_SCREEN
+tick
+expect ending = BAG_FULL
+expect reason ~ "Your bag was full when you left"

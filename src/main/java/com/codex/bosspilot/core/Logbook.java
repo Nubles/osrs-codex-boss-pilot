@@ -33,6 +33,12 @@ public final class Logbook
 		/** Damage taken on the trip, and the biggest single hit. */
 		public long damage;
 		public int biggestHit;
+		/**
+		 * Why the trip ended, a {@link Debrief.Ending} name, and how many more kills the supplies
+		 * left with would have lasted (-1 when not known). Null and -1 on trips saved before these.
+		 */
+		public String ended;
+		public double killsLeft = -1;
 
 		public double minutes()
 		{
