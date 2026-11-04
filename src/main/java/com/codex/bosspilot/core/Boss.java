@@ -24,6 +24,8 @@ public final class Boss
 		SLAYER("Slayer"),
 		GOD_WARS("God Wars"),
 		WILDERNESS("Wilderness"),
+		/** Fought with skills rather than combat gear, such as Zalcano. */
+		SKILLING("Skilling"),
 		LATE("Late");
 
 		private final String label;

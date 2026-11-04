@@ -1,0 +1,57 @@
+# Zalcano kills on the trip plaque: the trip starts on arriving in the prison, each kill comes from
+# the game's kill count message and is logged per account, and the pet's message, a moment after
+# the kill, joins that kill as a rare drop. Nothing here reads the fight itself.
+# Schematic, not the real map: the prison is region 12126 (RuneLite's Discord plugin:
+# BOSS_ZALCANO "Zalcano", 12126), so the scene only sits in it. Facts: Smolcano's message is
+# "You have a funny feeling like you're being followed." (oldschool.runescape.wiki, Smolcano). The
+# kill count message is unconfirmed for Zalcano (source: RuneLite's chat commands kill count
+# pattern) and is the form core/Chat reads.
+scene 3008 6016
+skill MINING 80
+skill SMITHING 80
+skill HITPOINTS 70
+item RUNE_PICKAXE "Rune pickaxe"
+item SHARK "Shark"
+items INV RUNE_PICKAXE 1
+items INV SHARK 10
+at 3034 6050
+login
+watch over tripPlaque.shown.over
+watch title tripPlaque.shown.title
+watch line0 tripPlaque.shown.lines.0.text
+watch line1 tripPlaque.shown.lines.1.text
+watch right1 tripPlaque.shown.lines.1.right
+tick 2
+expect over = "BOSS PILOT: ON A TRIP"
+expect title = Zalcano
+expect line0 ~ "0 kills in"
+expect line1 = "Your first logged kill is next"
+
+# The first kill: logged once its loot has had a few ticks to land; the walk in is not timed.
+chat GAMEMESSAGE "Your Zalcano kill count is: 41."
+tick 5
+expect line0 ~ "1 kill in"
+expect saved.zalcanoV1 ~ :41,           # the kill count, saved: "kc":41
+expect line1 = "1 kill since a rare drop"
+expect right1 = null
+
+# The second, with the pet's message a tick after: it is that kill's, and the kill is timed.
+chat GAMEMESSAGE "Your Zalcano kill count is: 42."
+tick
+chat GAMEMESSAGE "You have a funny feeling like you're being followed."
+tick 5
+expect line0 ~ "2 kills in"
+expect saved.zalcanoV1 ~ Smolcano
+expect line1 = "Your last kill brought a rare drop!"
+expect right1 ~ "kills/hr"
+
+# A third: the pet's dry spell starts again from it.
+chat GAMEMESSAGE "Your Zalcano kill count is: 43."
+tick 5
+expect line1 = "1 kill since a rare drop"
+expect saved.zalcanoV1 ~ :43,
+
+# Leaving the prison: no trip, the log stays.
+state LOGIN_SCREEN
+tick
+expect title = null

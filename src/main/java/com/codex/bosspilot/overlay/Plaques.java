@@ -10,6 +10,7 @@ import com.codex.bosspilot.core.Outlook;
 import com.codex.bosspilot.core.Reminders;
 import com.codex.bosspilot.core.Supply;
 import com.codex.bosspilot.core.Trip;
+import com.codex.bosspilot.core.ZalcanoRun;
 import com.codex.bosspilot.ui.Theme;
 import java.awt.Color;
 import java.util.ArrayList;
@@ -42,6 +43,16 @@ public final class Plaques
 	public static Plaque.Content trip(Trip trip, Outlook outlook, Logbook book, List<Reminders.Reminder> reminders, String note, long now,
 		BarrowsRun barrows)
 	{
+		return trip(trip, outlook, book, reminders, note, now, barrows, null);
+	}
+
+	/**
+	 * The trip plaque; on a Zalcano trip, with the player's own pace and the kills since a rare
+	 * drop.
+	 */
+	public static Plaque.Content trip(Trip trip, Outlook outlook, Logbook book, List<Reminders.Reminder> reminders, String note, long now,
+		BarrowsRun barrows, ZalcanoRun zalcano)
+	{
 		List<Plaque.Line> lines = new ArrayList<>();
 		boolean urgent = false;
 		List<Reminders.Reminder> sorted = new ArrayList<>(reminders);
@@ -57,6 +68,11 @@ public final class Plaques
 		if (barrows != null)
 		{
 			lines.addAll(barrows(barrows));
+		}
+		if (zalcano != null)
+		{
+			lines.add(new Plaque.Line(zalcano.plaqueText(), zalcano.getLog().sinceAny() == 0 && !zalcano.getLog().isEmpty() ? Theme.GREEN : Theme.VIOLET,
+				zalcano.paceText()));
 		}
 		if (!trip.getKillSeconds().isEmpty())
 		{
