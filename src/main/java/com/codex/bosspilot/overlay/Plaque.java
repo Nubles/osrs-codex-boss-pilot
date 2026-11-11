@@ -129,10 +129,11 @@ public class Plaque extends Overlay
 		Shape shape = new RoundRectangle2D.Float(0.5f, 0.5f, width - 1, height - 1, 10, 10);
 		g.setPaint(new GradientPaint(0, 0, Theme.alpha(Theme.CARD_TOP, 238), 0, height, Theme.alpha(Theme.INK_DEEP, 238)));
 		g.fill(shape);
-		g.setClip(shape);
+		Shape clip = g.getClip();
+		g.clip(shape);
 		g.setPaint(new GradientPaint(0, 0, c.tint, 0, height, Theme.alpha(c.tint, 80)));
 		g.fillRect(0, 0, 3, height);
-		g.setClip(null);
+		g.setClip(clip);
 		g.setColor(Theme.alpha(Theme.GOLD, 150));
 		g.draw(shape);
 		g.setColor(Theme.alpha(Color.WHITE, 14));
