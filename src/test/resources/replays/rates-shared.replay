@@ -1,0 +1,43 @@
+# The rates other Codex apps read (codexbosspilot/ratesV1, contract N10) are written when a trip
+# ends, keyed by the boss's name, and only from the account's own bossing: a trip on a Fresh Start
+# world is neither logged nor shared.
+# Facts: scenes/sarachnis.scene. The kill count message is the game's ("Your Sarachnis kill count
+# is: 52.", the form core/Chat reads). World types are RuneLite's own (net.runelite.api.WorldType).
+include /replays/scenes/sarachnis.scene
+
+# A Fresh Start world: Sarachnis in sight and a kill, but no trip.
+world 425 MEMBERS FRESH_START_WORLD
+npc SARACHNIS Sarachnis 1842 9905 2 level 318 as boss
+tick 2
+chat GAMEMESSAGE "Your Sarachnis kill count is: 7."
+tick 4
+expect title = null
+remove boss
+state LOGIN_SCREEN
+tick
+expect saved.logbookV1 !~ "kills"
+
+# Back on an ordinary world: two kills, then logging out ends the trip and shares the rates.
+state LOGGED_IN
+world 301 MEMBERS
+npc SARACHNIS Sarachnis 1842 9905 2 level 318 as boss
+tick 2
+expect title = Sarachnis
+items INV clear
+items INV SHARK 8
+items INV _4DOSEPRAYERRESTORE 3
+chat GAMEMESSAGE "Your Sarachnis kill count is: 52."
+tick 3
+items INV clear
+items INV SHARK 6
+items INV _4DOSEPRAYERRESTORE 2
+chat GAMEMESSAGE "Your Sarachnis kill count is: 53."
+tick 3
+state LOGIN_SCREEN
+tick
+# Two kills on 4 sharks (80 hitpoints) and 2 prayer potions (8 doses): 40 a kill and 4 doses a kill.
+expect saved.ratesV1 ~ Sarachnis
+expect saved.ratesV1 ~ foodPerKill
+expect saved.ratesV1 ~ :40.0,
+expect saved.ratesV1 ~ :4.0,
+expect saved.logbookV1 ~ :53,

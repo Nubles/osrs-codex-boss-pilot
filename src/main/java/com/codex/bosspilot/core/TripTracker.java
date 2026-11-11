@@ -57,8 +57,24 @@ public final class TripTracker
 	/** The game counted a kill. */
 	public void kill(Boss boss, long now)
 	{
+		kill(boss, now, -1);
+	}
+
+	/** The game counted a kill, and said the kill count it reached. */
+	public void kill(Boss boss, long now, int kc)
+	{
 		begin(boss, now);
 		trip.kill(now, 0);
+		trip.kc(kc);
+	}
+
+	/** Seconds a kill should take with the best setup from the gear brought, for the trip under way. */
+	public void theory(double seconds)
+	{
+		if (trip != null)
+		{
+			trip.theory(seconds);
+		}
 	}
 
 	public void duration(double seconds, long now)

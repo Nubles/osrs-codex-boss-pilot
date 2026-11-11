@@ -3,6 +3,7 @@ package com.codex.bosspilot.ui;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.GradientPaint;
+import java.awt.Shape;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.LayoutManager;
@@ -101,10 +102,12 @@ public class Card extends JPanel
 
 		if (accent != null)
 		{
-			g.setClip(shape);
+			// Clip to the card's shape and put the clip back as it was: never clear it.
+			Shape oldClip = g.getClip();
+			g.clip(shape);
 			g.setPaint(new GradientPaint(0, 0, accent, 0, h, Theme.alpha(accent, 90)));
 			g.fillRect(0, 0, 3, h);
-			g.setClip(null);
+			g.setClip(oldClip);
 		}
 
 		Color rim = highlighted ? Theme.alpha(Theme.GOLD, 150) : hover ? Theme.alpha(Theme.GOLD, 90) : Theme.STROKE_SOFT;

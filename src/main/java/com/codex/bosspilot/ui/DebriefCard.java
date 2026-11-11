@@ -57,6 +57,11 @@ final class DebriefCard
 		{
 			body.add(new Table(d.getRows()));
 		}
+		JComponent efficiency = EfficiencyCard.meter(t, width);
+		if (efficiency != null)
+		{
+			body.add(efficiency);
+		}
 		if (d != null && d.getHistory().size() > 1)
 		{
 			body.add(new Strip(d.getHistory()));

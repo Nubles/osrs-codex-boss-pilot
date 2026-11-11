@@ -18,6 +18,10 @@ public final class Logbook
 	static final int VERSION = 1;
 	/** Trips kept per boss. */
 	static final int TRIPS = 12;
+	/** The game's own kill times kept per boss, newest last, for the median kill. */
+	static final int TIMES = 50;
+	/** Points kept per boss on the kill efficiency curve. */
+	static final int CURVE = 30;
 
 	/** One finished trip. Public fields, so Gson can save it as it is. */
 	public static final class TripRecord
@@ -41,10 +45,50 @@ public final class Logbook
 		public double killsLeft = -1;
 		/** The charged item that ran out, such as "Toxic blowpipe darts"; null when none did. */
 		public String outOf;
+		/**
+		 * Kills the game timed itself (fight durations, never the clock) and their seconds added
+		 * up; 0 on trips saved before these.
+		 */
+		public int timed;
+		public double fightSeconds;
+		/**
+		 * Seconds a kill should have taken with the best setup from the gear brought on the trip,
+		 * or -1 when not worked out.
+		 */
+		public double theory = -1;
+		/** The game's kill count at the trip's last kill, or -1. */
+		public int kcEnd = -1;
+		/**
+		 * Coins of food, potions, runes and ammunition used up on the trip, at the day's prices;
+		 * -1 on trips saved before supplies were priced.
+		 */
+		public long supplies = -1;
 
 		public double minutes()
 		{
 			return Math.max(0, end - start) / 60000.0;
+		}
+	}
+
+	/** One point on a boss's kill efficiency curve: a trip, where it ended on the kill count, and its efficiency. */
+	public static final class Point
+	{
+		/** The kill count at the end of the trip, or the kills logged so far when the game did not say. */
+		public int at;
+		/** Kills the game timed on the trip. */
+		public int kills;
+		/** Best-setup kill time over the trip's average kill time: 1 is your gear's pace. */
+		public double eff;
+
+		public Point()
+		{
+		}
+
+		Point(int at, int kills, double eff)
+		{
+			this.at = at;
+			this.kills = kills;
+			this.eff = eff;
 		}
 	}
 
@@ -54,6 +98,10 @@ public final class Logbook
 		public int kc = -1;
 		public double best;
 		public List<TripRecord> trips = new ArrayList<>();
+		/** The last kill times the game gave, newest last; empty on logbooks saved before these. */
+		public List<Double> times = new ArrayList<>();
+		/** The kill efficiency of each timed trip with a known best-setup time, oldest first. */
+		public List<Point> curve = new ArrayList<>();
 	}
 
 	public int version = VERSION;
@@ -80,6 +128,16 @@ public final class Logbook
 					e.trips = new ArrayList<>();
 				}
 				e.trips.removeIf(t -> t == null);
+				if (e.times == null)
+				{
+					e.times = new ArrayList<>();
+				}
+				e.times.removeIf(t -> t == null || !(t > 0));
+				if (e.curve == null)
+				{
+					e.curve = new ArrayList<>();
+				}
+				e.curve.removeIf(p -> p == null || !(p.eff > 0) || Double.isInfinite(p.eff));
 			}
 			return book;
 		}
@@ -97,6 +155,12 @@ public final class Logbook
 	public Entry entry(Boss boss)
 	{
 		return bosses.computeIfAbsent(boss.getKey(), k -> new Entry());
+	}
+
+	/** The boss a saved key belongs to, or null when Boss Pilot no longer knows it. */
+	public Boss boss(String key)
+	{
+		return Bosses.byKey(key);
 	}
 
 	/** The entry, or null when the boss has never been seen. */
@@ -147,6 +211,49 @@ public final class Logbook
 		{
 			noteBest(boss, trip.bestKill);
 		}
+		double eff = Efficiency.of(trip);
+		if (eff > 0)
+		{
+			// The game's kill count when it has one count for the boss; else the kills logged so far.
+			int at = trip.kcEnd > 0 && boss.getKcNames().size() == 1 ? trip.kcEnd
+				: (e.curve.isEmpty() ? 0 : e.curve.get(e.curve.size() - 1).at) + trip.kills;
+			e.curve.add(new Point(at, trip.timed, Math.round(eff * 1000) / 1000.0));
+			while (e.curve.size() > CURVE)
+			{
+				e.curve.remove(0);
+			}
+		}
+	}
+
+	/** Keeps the game's own kill times from a trip, for the median kill. */
+	public void addTimes(Boss boss, List<Double> seconds)
+	{
+		Entry e = entry(boss);
+		for (double s : seconds)
+		{
+			if (s > 0)
+			{
+				e.times.add(Math.round(s * 10) / 10.0);
+			}
+		}
+		while (e.times.size() > TIMES)
+		{
+			e.times.remove(0);
+		}
+	}
+
+	/** The median of the kill times the game gave lately, or -1 when none are kept. */
+	public double median(Boss boss)
+	{
+		Entry e = peek(boss);
+		if (e == null || e.times.isEmpty())
+		{
+			return -1;
+		}
+		List<Double> sorted = new ArrayList<>(e.times);
+		java.util.Collections.sort(sorted);
+		int n = sorted.size();
+		return n % 2 == 1 ? sorted.get(n / 2) : (sorted.get(n / 2 - 1) + sorted.get(n / 2)) / 2;
 	}
 
 	/** Totals over the kept trips that had kills. */

@@ -21,6 +21,12 @@ public final class Trip
 	private long lastKillAt;
 	private int kills;
 	private final List<Double> killSeconds = new ArrayList<>();
+	/** For each kill time, whether the game gave it (a fight duration) rather than the clock. */
+	private final List<Boolean> gameTimed = new ArrayList<>();
+	/** Seconds a kill should take with the best setup from the gear brought, or -1 when not worked out. */
+	private double theory = -1;
+	/** The game's kill count at the last kill, or -1. */
+	private int kc = -1;
 	private long loot;
 	private int deaths;
 	private long foodUsed;
@@ -121,6 +127,7 @@ public final class Trip
 		if (seconds > 0 && (lastFromGame || kills > 1))
 		{
 			killSeconds.add(seconds);
+			gameTimed.add(lastFromGame);
 			lastClockTimed = !lastFromGame;
 		}
 		lastKillAt = now;
@@ -140,10 +147,12 @@ public final class Trip
 			if (lastClockTimed)
 			{
 				killSeconds.set(killSeconds.size() - 1, seconds);
+				gameTimed.set(gameTimed.size() - 1, true);
 			}
 			else
 			{
 				killSeconds.add(seconds);
+				gameTimed.add(true);
 			}
 			lastFromGame = true;
 			lastClockTimed = false;
@@ -152,6 +161,37 @@ public final class Trip
 		{
 			pendingSeconds = seconds;
 		}
+	}
+
+	/** The game's kill count at the kill just counted. */
+	void kc(int count)
+	{
+		kc = Math.max(kc, count);
+	}
+
+	/** Seconds a kill should take with the best setup from the gear brought; -1 when not known. */
+	void theory(double seconds)
+	{
+		theory = seconds > 0 && !Double.isInfinite(seconds) ? seconds : -1;
+	}
+
+	public double getTheory()
+	{
+		return theory;
+	}
+
+	/** The kill times the game gave itself, oldest first: the fight durations, never the clock's. */
+	public List<Double> getGameSeconds()
+	{
+		List<Double> out = new ArrayList<>();
+		for (int i = 0; i < killSeconds.size(); i++)
+		{
+			if (gameTimed.get(i))
+			{
+				out.add(killSeconds.get(i));
+			}
+		}
+		return out;
 	}
 
 	void loot(long value)
@@ -382,6 +422,16 @@ public final class Trip
 		r.killsLeft = left == null ? -1 : left.kills;
 		r.ended = Debrief.ending(this, left).name();
 		r.outOf = ranOut;
+		List<Double> game = getGameSeconds();
+		r.timed = game.size();
+		double sum = 0;
+		for (double s : game)
+		{
+			sum += s;
+		}
+		r.fightSeconds = Math.round(sum * 10) / 10.0;
+		r.theory = theory > 0 ? Math.round(theory * 10) / 10.0 : -1;
+		r.kcEnd = kc;
 		return r;
 	}
 }

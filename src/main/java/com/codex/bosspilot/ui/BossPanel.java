@@ -4,6 +4,7 @@ import com.codex.bosspilot.core.Aim;
 import com.codex.bosspilot.core.BarrowsRun;
 import com.codex.bosspilot.core.Boss;
 import com.codex.bosspilot.core.Bosses;
+import com.codex.bosspilot.core.Efficiency;
 import com.codex.bosspilot.core.Format;
 import com.codex.bosspilot.core.ChargeCheck;
 import com.codex.bosspilot.core.KitCheck;
@@ -373,6 +374,16 @@ public class BossPanel extends PluginPanel
 					list.add(setup(s));
 				}
 			}
+		}
+
+		Logbook.Entry kept = view.logbook.peek(b);
+		if (kept != null && !kept.curve.isEmpty())
+		{
+			Efficiency.Read eff = Efficiency.read(kept.curve);
+			list.space(2);
+			list.add(new SectionHeader("Kill efficiency", eff.getTrend() == Efficiency.Trend.NONE ? "learning"
+				: eff.getTrend().name().toLowerCase(java.util.Locale.ROOT)));
+			list.add(EfficiencyCard.curve(eff, b.getKcNames().size() == 1, TEXT));
 		}
 
 		list.space(2);
@@ -1010,6 +1021,10 @@ public class BossPanel extends PluginPanel
 			{
 				bits.add(Format.number(rates.lootPerHour()) + " loot an hour");
 			}
+		}
+		if (e != null && !e.curve.isEmpty())
+		{
+			bits.add("efficiency " + Efficiency.percent(Efficiency.read(e.curve).getRecent()));
 		}
 		if (rates.trips > 0)
 		{
