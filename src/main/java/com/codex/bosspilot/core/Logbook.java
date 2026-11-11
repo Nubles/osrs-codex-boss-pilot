@@ -58,6 +58,11 @@ public final class Logbook
 		public double theory = -1;
 		/** The game's kill count at the trip's last kill, or -1. */
 		public int kcEnd = -1;
+		/**
+		 * Coins of food, potions, runes and ammunition used up on the trip, at the day's prices;
+		 * -1 on trips saved before supplies were priced.
+		 */
+		public long supplies = -1;
 
 		public double minutes()
 		{
@@ -150,6 +155,12 @@ public final class Logbook
 	public Entry entry(Boss boss)
 	{
 		return bosses.computeIfAbsent(boss.getKey(), k -> new Entry());
+	}
+
+	/** The boss a saved key belongs to, or null when Boss Pilot no longer knows it. */
+	public Boss boss(String key)
+	{
+		return Bosses.byKey(key);
 	}
 
 	/** The entry, or null when the boss has never been seen. */

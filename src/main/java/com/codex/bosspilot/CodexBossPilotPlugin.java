@@ -29,6 +29,7 @@ import com.codex.bosspilot.core.LunarRun;
 import com.codex.bosspilot.core.Moons;
 import com.codex.bosspilot.core.Outlook;
 import com.codex.bosspilot.core.Ranker;
+import com.codex.bosspilot.core.RatesV1;
 import com.codex.bosspilot.core.Reminders;
 import com.codex.bosspilot.core.Review;
 import com.codex.bosspilot.core.RunSupplies;
@@ -38,6 +39,7 @@ import com.codex.bosspilot.core.Supply;
 import com.codex.bosspilot.core.Trip;
 import com.codex.bosspilot.core.TripTracker;
 import com.codex.bosspilot.core.WayIn;
+import com.codex.bosspilot.core.WorldMode;
 import com.codex.bosspilot.core.MaggotKing;
 import com.codex.bosspilot.core.MaggotLog;
 import com.codex.bosspilot.core.MaggotRun;
@@ -59,6 +61,7 @@ import com.google.gson.Gson;
 import com.google.inject.Provides;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -142,6 +145,9 @@ public class CodexBossPilotPlugin extends Plugin
 {
 	private static final Logger log = LoggerFactory.getLogger(CodexBossPilotPlugin.class);
 	static final String BANK_KEY = "bankV1";
+	/** Boss Pilot's saved data in its own config group: a change to one is not a setting changing. */
+	private static final Set<String> DATA_KEYS = new HashSet<>(Arrays.asList(Logbook.KEY, "bankV1", ChargeBook.KEY, ChestLog.KEY,
+		"barrowsTunnel", ZalcanoLog.KEY, LunarLog.KEY, GauntletLog.KEY, MaggotLog.KEY, RatesV1.KEY));
 	static final String PINNED_KEY = "pinned";
 	/** The player's own note for a boss, under this prefix and the boss key. */
 	static final String NOTE_KEY = "note.";
@@ -333,6 +339,9 @@ public class CodexBossPilotPlugin extends Plugin
 	private volatile String theoryKey;
 	private volatile double theorySeconds = -1;
 
+	/** The rates last shared, without their time, so they are written only when they change. */
+	private String ratesSignature;
+
 	private volatile String setupsKey;
 	private volatile Map<String, List<Setup>> setups = Collections.emptyMap();
 	private volatile boolean setupsPending;
@@ -402,6 +411,17 @@ public class CodexBossPilotPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick tick)
 	{
+		if (!learning())
+		{
+			// Not the account's own bossing (Last Man Standing, Fresh Start, seasonal and the like): no trips.
+			tracker.abandon();
+			nearby = null;
+			if (++ticks % EVALUATE_TICKS == 0)
+			{
+				evaluate();
+			}
+			return;
+		}
 		ticks++;
 		nearby = findNearby();
 		readBarrows();
@@ -477,10 +497,7 @@ public class CodexBossPilotPlugin extends Plugin
 	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
-		if (CodexBossPilotConfig.GROUP.equals(event.getGroup()) && !Logbook.KEY.equals(event.getKey()) && !BANK_KEY.equals(event.getKey())
-			&& !ChargeBook.KEY.equals(event.getKey()) && !ChestLog.KEY.equals(event.getKey()) && !TUNNEL_KEY.equals(event.getKey())
-			&& !ZalcanoLog.KEY.equals(event.getKey()) && !LunarLog.KEY.equals(event.getKey())
-			&& !GauntletLog.KEY.equals(event.getKey()) && !MaggotLog.KEY.equals(event.getKey()))
+		if (CodexBossPilotConfig.GROUP.equals(event.getGroup()) && !DATA_KEYS.contains(event.getKey()))
 		{
 			if ("boost".equals(event.getKey()))
 			{
@@ -510,6 +527,10 @@ public class CodexBossPilotPlugin extends Plugin
 			{
 				gauntletSeeds(event.getItemContainer());
 			}
+		}
+		else if (!learning())
+		{
+			return;
 		}
 		else if (id == InventoryID.TRAIL_REWARDINV && region() == CRYPT_REGION)
 		{
@@ -576,7 +597,7 @@ public class CodexBossPilotPlugin extends Plugin
 	@Subscribe
 	public void onChatMessage(ChatMessage event)
 	{
-		if (event.getType() != ChatMessageType.GAMEMESSAGE && event.getType() != ChatMessageType.SPAM)
+		if (event.getType() != ChatMessageType.GAMEMESSAGE && event.getType() != ChatMessageType.SPAM || !learning())
 		{
 			return;
 		}
@@ -667,6 +688,10 @@ public class CodexBossPilotPlugin extends Plugin
 	@Subscribe
 	public void onNpcLootReceived(NpcLootReceived event)
 	{
+		if (!learning())
+		{
+			return;
+		}
 		NPC npc = event.getNpc();
 		Boss boss = npc == null ? null : Bosses.byNpc(npc.getName());
 		// Zalcano's loot is read from the ground by the kill log, which adds it to the trip.
@@ -680,6 +705,10 @@ public class CodexBossPilotPlugin extends Plugin
 	@Subscribe
 	public void onLootReceived(LootReceived event)
 	{
+		if (!learning())
+		{
+			return;
+		}
 		if (Bosses.MAGGOT_KING.getName().equalsIgnoreCase(event.getName()))
 		{
 			// The corpse's loot, as RuneLite's loot tracker hands it on; its kill log adds it to the trip.
@@ -715,7 +744,7 @@ public class CodexBossPilotPlugin extends Plugin
 	@Subscribe
 	public void onActorDeath(ActorDeath event)
 	{
-		if (event.getActor() == client.getLocalPlayer())
+		if (event.getActor() == client.getLocalPlayer() && learning())
 		{
 			Trip on = tracker.current();
 			if (on != null && on.getBoss() == Bosses.MAGGOT_KING)
@@ -1891,6 +1920,8 @@ public class CodexBossPilotPlugin extends Plugin
 	private void loadProfile()
 	{
 		logbook = Logbook.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, Logbook.KEY));
+		ratesSignature = storedRatesSignature();
+		saveRates();
 		charges = ChargeBook.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, ChargeBook.KEY));
 		chestLog = ChestLog.parse(gson, configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, ChestLog.KEY));
 		tunnel = brother(configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, TUNNEL_KEY));
@@ -1937,6 +1968,25 @@ public class CodexBossPilotPlugin extends Plugin
 		bankSeenAt = snap == null ? 0 : snap.getSavedAt();
 		bankStock = stockOf(bankItems);
 		selected = null;
+	}
+
+	/** The signature of the rates saved last time, so a login does not rewrite unchanged rates; null when none. */
+	private String storedRatesSignature()
+	{
+		String json = configManager.getRSProfileConfiguration(CodexBossPilotConfig.GROUP, RatesV1.KEY);
+		if (json == null)
+		{
+			return null;
+		}
+		try
+		{
+			RatesV1 stored = gson.fromJson(json, RatesV1.class);
+			return stored == null ? null : stored.signature(gson);
+		}
+		catch (RuntimeException e)
+		{
+			return null;
+		}
 	}
 
 	private long value(java.util.Collection<ItemStack> items)
@@ -2341,6 +2391,30 @@ public class CodexBossPilotPlugin extends Plugin
 			logbook.addTimes(done.getBoss(), done.getGameSeconds());
 		}
 		saveLogbook();
+		saveRates();
+	}
+
+	/** Whether this world's trips are the account's own, to log and learn from. */
+	private boolean learning()
+	{
+		return client.getGameState() != GameState.LOGGED_IN || WorldMode.learns(client.getWorldType());
+	}
+
+	/** Shares the rates other Codex apps read, when they have changed. */
+	private void saveRates()
+	{
+		if (configManager.getRSProfileKey() == null)
+		{
+			return;
+		}
+		RatesV1 rates = RatesV1.of(logbook, System.currentTimeMillis());
+		String sig = rates.signature(gson);
+		if (sig.equals(ratesSignature))
+		{
+			return;
+		}
+		ratesSignature = sig;
+		configManager.setRSProfileConfiguration(CodexBossPilotConfig.GROUP, RatesV1.KEY, rates.toJson(gson));
 	}
 
 	private void saveLogbook()
