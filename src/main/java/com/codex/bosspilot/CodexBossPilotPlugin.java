@@ -329,6 +329,10 @@ public class CodexBossPilotPlugin extends Plugin
 	private final Map<Integer, String> names = new HashMap<>();
 
 	// The setups, worked out off the client thread whenever what they depend on changes.
+	/** The best-setup kill time for the trip under way, from the gear carried, worked out off the client thread. */
+	private volatile String theoryKey;
+	private volatile double theorySeconds = -1;
+
 	private volatile String setupsKey;
 	private volatile Map<String, List<Setup>> setups = Collections.emptyMap();
 	private volatile boolean setupsPending;
@@ -622,7 +626,7 @@ public class CodexBossPilotPlugin extends Plugin
 				{
 					zalcanoLoot.kill(ticks, kc.count);
 				}
-				tracker.kill(boss, now);
+				tracker.kill(boss, now, kc.count);
 				chargesKill(boss);
 				saveLogbook();
 				saveFinished();
@@ -2042,6 +2046,17 @@ public class CodexBossPilotPlugin extends Plugin
 			refreshSetups(account);
 		}
 		in.killSeconds = killSeconds(setups);
+		Trip on = tracker.current();
+		if (loggedIn && on != null && on.getBoss() == nearby)
+		{
+			// Only while the boss is in sight: on the way home the gear carried is no longer the trip's.
+			refreshTheory(on.getBoss(), account);
+			String want = theoryKey;
+			if (want != null && want.startsWith(on.getBoss().getKey() + "/") && theorySeconds > 0)
+			{
+				tracker.theory(theorySeconds);
+			}
+		}
 		List<Ranker.Pick> picks = loggedIn ? Ranker.rank(Bosses.ALL, in) : Collections.emptyList();
 		Ranker.Pick next = Ranker.next(picks);
 		Ranker.Pick shown = next;
@@ -2152,6 +2167,84 @@ public class CodexBossPilotPlugin extends Plugin
 		return out;
 	}
 
+	/**
+	 * Starts working out, off the client thread, how long a kill of this boss should take with the
+	 * best setup from the gear carried now: the kill efficiency's yardstick for the trip.
+	 */
+	private void refreshTheory(Boss boss, Account account)
+	{
+		if (planner == null || boss.getTargets().isEmpty() || !boss.bringsGear())
+		{
+			return;
+		}
+		Set<Gear> owned = new LinkedHashSet<>();
+		for (int id : carriedIds)
+		{
+			Gear g = data.gear(id);
+			if (g != null)
+			{
+				owned.add(g);
+			}
+		}
+		if (owned.isEmpty())
+		{
+			return;
+		}
+		String key = boss.getKey() + "/" + owned.hashCode() + "/" + account.getLevels().hashCode() + "/" + config.boost()
+			+ "/" + Objects.hashCode(account.getTask());
+		if (key.equals(theoryKey))
+		{
+			return;
+		}
+		theoryKey = key;
+		theorySeconds = -1;
+		Fighter fighter = fighter(account);
+		List<Gear> ownedList = new ArrayList<>(owned);
+		executor.execute(() ->
+		{
+			double secs = -1;
+			try
+			{
+				secs = bestSeconds(boss, ownedList, fighter);
+			}
+			catch (RuntimeException e)
+			{
+				log.warn("Boss Pilot could not work out the trip's kill time", e);
+			}
+			if (key.equals(theoryKey))
+			{
+				theorySeconds = secs;
+			}
+		});
+	}
+
+	/** Seconds a kill takes with the best setup from this gear; a boss of several monsters takes their average; -1 when none. */
+	private double bestSeconds(Boss b, List<Gear> owned, Fighter fighter)
+	{
+		double sum = 0;
+		int n = 0;
+		for (String name : b.getTargets())
+		{
+			Target t = data.target(name);
+			if (t == null)
+			{
+				continue;
+			}
+			Result r = planner.optimise(owned, fighter, t).best().getResult();
+			if (r.getKind() == null || r.getDps() <= 0)
+			{
+				continue;
+			}
+			double secs = r.secondsToKill(t);
+			if (secs > 0 && !Double.isInfinite(secs))
+			{
+				sum += secs;
+				n++;
+			}
+		}
+		return n == 0 ? -1 : sum / n;
+	}
+
 	/** Starts working the setups out again off the client thread when what they hang on has changed. */
 	private void refreshSetups(Account account)
 	{
@@ -2245,6 +2338,7 @@ public class CodexBossPilotPlugin extends Plugin
 		if (record.kills > 0 || record.deaths > 0)
 		{
 			logbook.add(done.getBoss(), record);
+			logbook.addTimes(done.getBoss(), done.getGameSeconds());
 		}
 		saveLogbook();
 	}
